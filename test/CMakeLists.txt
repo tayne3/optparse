@@ -1,5 +1,5 @@
 if(MSVC)
-  add_compile_options(Catch2 INTERFACE /utf-8)
+  add_compile_options(/utf-8)
 endif()
 
 add_executable(optparse_test optparse_test.cpp)

@@ -1,9 +1,13 @@
-/* This is free and unencumbered software released into the public domain. */
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #define OPTPARSE_IMPLEMENTATION
 #include "optparse/optparse.h"
@@ -24,7 +28,7 @@ static int cmd_echo(char **argv) {
 	}
 	argv += options.optind;
 
-	for (i = 0; argv[i]; i++) { printf("%s%s", i ? " " : "", argv[i]); }
+	for (i = 0; argv[i]; ++i) { printf("%s%s", i ? " " : "", argv[i]); }
 	if (newline) { putchar('\n'); }
 
 	fflush(stdout);
@@ -43,8 +47,15 @@ static int cmd_sleep(char **argv) {
 		}
 	}
 
-	for (i = 0; argv[i]; i++) {
-		if (sleep(atoi(argv[i]))) { return 1; }
+	for (i = 0; argv[i]; ++i) {
+		const int seconds = atoi(argv[i]);
+		if (seconds > 0) {
+#ifdef _WIN32
+			Sleep(seconds * 1000);
+#else
+			sleep(seconds);
+#endif
+		}
 	}
 	return 0;
 }
@@ -87,7 +98,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	for (i = 0; i < ncmds; i++) {
+	for (i = 0; i < ncmds; ++i) {
 		if (!strcmp(cmds[i].name, subargv[0])) { return cmds[i].cmd(subargv); }
 	}
 	fprintf(stderr, "%s: invalid subcommand: %s\n", argv[0], subargv[0]);
