@@ -142,16 +142,16 @@ jobs:
         include:
           # MSVC
           - {
-              os: windows-2019,
+              os: windows-2022,
               compiler: msvc,
-              generator: "Visual Studio 16 2019",
+              generator: "Visual Studio 17 2022",
               build_type: Release,
             }
           - {
               os: windows-2022,
               compiler: msvc,
               generator: "Visual Studio 17 2022",
-              build_type: Release,
+              build_type: Debug,
             }
           - {
               os: windows-2025,
@@ -184,7 +184,7 @@ jobs:
           -G "${{ matrix.generator }}"
           ${{ matrix.toolset && format('-T {0}', matrix.toolset) || '' }}
           -DBUILD_SHARED_LIBS=OFF
-          -DTHRD_BUILD_TEST=ON
+          -DOPTPARSE_BUILD_TEST=ON
         shell: bash
 
       - name: Build
@@ -208,7 +208,7 @@ jobs:
           - { os: windows-2025, build_type: Release }
           - { os: windows-2025, build_type: Debug }
           - { os: windows-2022, build_type: Release }
-          - { os: windows-2019, build_type: Release }
+          - { os: windows-2022, build_type: Debug }
 
     steps:
       - name: Checkout code
@@ -226,7 +226,7 @@ jobs:
           -G "MinGW Makefiles"
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DBUILD_SHARED_LIBS=OFF
-          -DTHRD_BUILD_TEST=ON
+          -DOPTPARSE_BUILD_TEST=ON
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build_type }}
@@ -265,7 +265,7 @@ jobs:
           -G "Unix Makefiles"
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_SHARED_LIBS=OFF
-          -DTHRD_BUILD_TEST=ON
+          -DOPTPARSE_BUILD_TEST=ON
 
       - name: Build
         run: cmake --build build
@@ -317,7 +317,7 @@ jobs:
           ${{ matrix.cxx && format('-DCMAKE_CXX_COMPILER={0}', matrix.cxx) || '' }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DBUILD_SHARED_LIBS=OFF
-          -DTHRD_BUILD_TEST=ON
+          -DOPTPARSE_BUILD_TEST=ON
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build_type }}
