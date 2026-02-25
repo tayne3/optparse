@@ -142,7 +142,7 @@ static int optparse__argtype(const char *optstring, char c) {
 	return count;
 }
 
-static int optparse_longopts_end(const optparse_long_t *longopts, int i) {
+static int optparse__longopts_end(const optparse_long_t *longopts, int i) {
 	return !longopts[i].longname && !longopts[i].shortname;
 }
 
@@ -150,7 +150,7 @@ static int optparse_longopts_end(const optparse_long_t *longopts, int i) {
 static void optparse__from_long(const optparse_long_t *longopts, char *optstring) {
 	char *p = optstring;
 	int   i, a;
-	for (i = 0; !optparse_longopts_end(longopts, i); ++i) {
+	for (i = 0; !optparse__longopts_end(longopts, i); ++i) {
 		if (longopts[i].shortname > 0 && longopts[i].shortname < 127) {
 			*p++ = (char)longopts[i].shortname;
 			for (a = 0; a < (int)longopts[i].argtype; ++a) { *p++ = ':'; }
@@ -187,7 +187,7 @@ static int optparse__long_fallback(optparse_t *options, const optparse_long_t *l
 		*longindex = -1;
 		if (result != -1) {
 			int i;
-			for (i = 0; !optparse_longopts_end(longopts, i); ++i) {
+			for (i = 0; !optparse__longopts_end(longopts, i); ++i) {
 				if (longopts[i].shortname == options->optopt) {
 					*longindex = i;
 					break;
@@ -318,7 +318,7 @@ OPTPARSE_API int optparse_long(optparse_t *options, const optparse_long_t *longo
 	option += 2;
 	options->optind++;
 
-	for (i = 0; !optparse_longopts_end(longopts, i); i++) {
+	for (i = 0; !optparse__longopts_end(longopts, i); i++) {
 		const char *name = longopts[i].longname;
 		if (!optparse__longopts_match(name, option)) { continue; }
 
