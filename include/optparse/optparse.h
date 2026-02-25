@@ -62,11 +62,11 @@ typedef enum optparse_argtype {
 } optparse_argtype_t;
 
 /* Long option descriptor. Terminate array with {0, 0, OPTPARSE_NONE}. */
-struct optparse_long {
+typedef struct optparse_long {
 	const char        *longname;
 	int                shortname; /* corresponding short char, or >127 for long-only */
 	optparse_argtype_t argtype;
-};
+} optparse_long_t;
 
 OPTPARSE_API void optparse_init(optparse_t *options, char **argv);
 
@@ -79,7 +79,7 @@ OPTPARSE_API int optparse(optparse_t *options, const char *optstring);
 /* Parse next option, supporting both short and GNU-style long options.
  * longindex receives index into longopts (-1 for short options).
  */
-OPTPARSE_API int optparse_long(optparse_t *options, const struct optparse_long *longopts, int *longindex);
+OPTPARSE_API int optparse_long(optparse_t *options, const optparse_long_t *longopts, int *longindex);
 
 /* Retrieve next non-option argument. Useful for stepping over sub-commands
  * to continue parsing with a fresh option string.
@@ -142,12 +142,12 @@ static int optparse__argtype(const char *optstring, char c) {
 	return count;
 }
 
-static int optparse_longopts_end(const struct optparse_long *longopts, int i) {
+static int optparse_longopts_end(const optparse_long_t *longopts, int i) {
 	return !longopts[i].longname && !longopts[i].shortname;
 }
 
 /* Build optstring from longopts array so short-option fallback path can be reused. */
-static void optparse__from_long(const struct optparse_long *longopts, char *optstring) {
+static void optparse__from_long(const optparse_long_t *longopts, char *optstring) {
 	char *p = optstring;
 	int   i, a;
 	for (i = 0; !optparse_longopts_end(longopts, i); ++i) {
@@ -176,7 +176,7 @@ static char *optparse__longopts_arg(char *option) {
 /* Fall back to short-option parsing when encountering short-opt cluster
  * inside optparse_long(). Also fills in longindex.
  */
-static int optparse__long_fallback(optparse_t *options, const struct optparse_long *longopts, int *longindex) {
+static int optparse__long_fallback(optparse_t *options, const optparse_long_t *longopts, int *longindex) {
 	int  result;
 	char optstring[96 * 3 + 1];
 
@@ -289,7 +289,7 @@ OPTPARSE_API char *optparse_arg(optparse_t *options) {
 	return option;
 }
 
-OPTPARSE_API int optparse_long(optparse_t *options, const struct optparse_long *longopts, int *longindex) {
+OPTPARSE_API int optparse_long(optparse_t *options, const optparse_long_t *longopts, int *longindex) {
 	char *option = options->argv[options->optind];
 	int   i;
 
