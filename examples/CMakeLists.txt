@@ -2,11 +2,14 @@ if(MSVC)
   add_compile_options(/utf-8)
 endif()
 
+add_executable(short short.c)
+target_link_libraries(short PRIVATE optparse::optparse)
+
 add_executable(long long.c)
 target_link_libraries(long PRIVATE optparse::optparse)
 
-add_executable(short short.c)
-target_link_libraries(short PRIVATE optparse::optparse)
+add_executable(usage usage.c)
+target_link_libraries(usage PRIVATE optparse::optparse)
 
 add_executable(subcommands subcommands.c)
 target_link_libraries(subcommands PRIVATE optparse::optparse)

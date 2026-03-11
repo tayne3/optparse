@@ -1,36 +1,27 @@
-/* This is free and unencumbered software released into the public domain. */
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define OPTPARSE_IMPLEMENTATION
 #define OPTPARSE_API static
+#define OPTPARSE_IMPLEMENTATION
 #include "optparse/optparse.h"
 
 enum {
-    OPT_HELP = 128,
-    OPT_VERSION,
+    OPT_DELAY = 128,
+    OPT_VERBOSE,
 };
-
-static void print_help(const char* prog_name) {
-    fprintf(stderr, "Usage: %s [options] [args...]\n", prog_name);
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -a, --amend         amend the previous commit\n");
-    fprintf(stderr, "  -b, --brief         output brief description\n");
-    fprintf(stderr, "  -c, --color=<val>   use colored output\n");
-    fprintf(stderr, "  -d, --delay[=val]   delay with optional value\n");
-    fprintf(stderr, "  -v, --verbose       enable verbose output\n");
-    fprintf(stderr, "      --version       display version information and exit\n");
-    fprintf(stderr, "      --help          display this help message and exit\n");
-}
 
 int main(int argc, char** argv) {
     (void)argc;
     optparse_long_t longopts[] = {
-        {"amend", 'a', OPTPARSE_NONE},     {"brief", 'b', OPTPARSE_NONE},
-        {"color", 'c', OPTPARSE_REQUIRED}, {"delay", 'd', OPTPARSE_OPTIONAL},
-        {"verbose", 'v', OPTPARSE_NONE},   {"version", OPT_VERSION, OPTPARSE_NONE},
-        {"help", OPT_HELP, OPTPARSE_NONE}, {0},
+        {"amend", 'a', OPTPARSE_NONE, "amend the previous commit", NULL},
+        {"brief", 'b', OPTPARSE_NONE, "output brief description", NULL},
+        {"color", 'c', OPTPARSE_REQUIRED, "use colored output", "COLOR"},
+        {"delay", OPT_DELAY, OPTPARSE_OPTIONAL, "delay with optional value", "MS"},
+        {"verbose", OPT_VERBOSE, OPTPARSE_NONE, "enable verbose output", NULL},
+        {"version", 'v', OPTPARSE_NONE, "display version information and exit", NULL},
+        {"help", 'h', OPTPARSE_NONE, "display this help message and exit", NULL},
+        {0},
     };
 
     bool        amend   = false;
@@ -49,17 +40,20 @@ int main(int argc, char** argv) {
             case 'a': amend = true; break;
             case 'b': brief = true; break;
             case 'c': color = options.optarg; break;
-            case 'd': delay = options.optarg ? atoi(options.optarg) : 1; break;
-            case 'v': verbose = true; break;
-            case OPT_VERSION:
-                printf("long example version 1.0\n");
+            case OPT_DELAY: delay = options.optarg ? atoi(options.optarg) : 1; break;
+            case OPT_VERBOSE: verbose = true; break;
+            case 'v':
+                printf("long version 1.0\n");
                 exit(EXIT_SUCCESS);
                 break;
-            case OPT_HELP:
-                print_help(argv[0]);
+            case 'h':
+                optparse_usage(stderr, "long", longopts, -1, "[args...]");
+                fprintf(stderr, "\nOptions:\n");
+                optparse_help(stderr, longopts, -1, NULL);
+                fprintf(stderr, "\n");
                 exit(EXIT_SUCCESS);
                 break;
-            case '?': fprintf(stderr, "%s: %s\n", argv[0], options.errmsg); exit(EXIT_FAILURE);
+            case '?': fprintf(stderr, "long: %s\n", options.errmsg); exit(EXIT_FAILURE);
         }
     }
 
