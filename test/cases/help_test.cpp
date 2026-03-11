@@ -40,6 +40,10 @@ private:
     FILE* fp_;
 };
 
+void test_out(const char* s, int len, void* user) {
+    std::fwrite(s, 1, static_cast<std::size_t>(len), static_cast<FILE*>(user));
+}
+
 std::vector<std::string> split_lines(const std::string& s) {
     std::vector<std::string> lines;
 
@@ -107,7 +111,7 @@ optparse_help_config_t fixed_cfg(int width = 80, int min_desc = 26, int max_left
 TEST_CASE("help / basic rendering", "[help][basic]") {
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg();
-    optparse_help(cap.fp(), kTypical, -1, &cfg);
+    optparse_help(test_out, cap.fp(), kTypical, -1, &cfg);
     const std::string out = cap.read();
     INFO(out);
 
@@ -158,7 +162,7 @@ TEST_CASE("help / visibility", "[help][visibility]") {
         };
         CaptureFile            cap;
         optparse_help_config_t cfg = fixed_cfg();
-        optparse_help(cap.fp(), opts, -1, &cfg);
+        optparse_help(test_out, cap.fp(), opts, -1, &cfg);
         std::string out = cap.read();
         INFO(out);
 
@@ -175,7 +179,7 @@ TEST_CASE("help / visibility", "[help][visibility]") {
         };
         CaptureFile            cap;
         optparse_help_config_t cfg = fixed_cfg();
-        optparse_help(cap.fp(), opts, -1, &cfg);
+        optparse_help(test_out, cap.fp(), opts, -1, &cfg);
         std::string out = cap.read();
         INFO(out);
 
@@ -191,7 +195,7 @@ TEST_CASE("help / visibility", "[help][visibility]") {
         };
         CaptureFile            cap;
         optparse_help_config_t cfg = fixed_cfg();
-        optparse_help(cap.fp(), opts, -1, &cfg);
+        optparse_help(test_out, cap.fp(), opts, -1, &cfg);
         REQUIRE(cap.read().empty());
     }
 
@@ -199,7 +203,7 @@ TEST_CASE("help / visibility", "[help][visibility]") {
         static const optparse_long_t opts[] = {{0, 0, OPTPARSE_NONE, NULL}};
         CaptureFile                  cap;
         optparse_help_config_t       cfg = fixed_cfg();
-        optparse_help(cap.fp(), opts, -1, &cfg);
+        optparse_help(test_out, cap.fp(), opts, -1, &cfg);
         REQUIRE(cap.read().empty());
     }
 }
@@ -207,7 +211,7 @@ TEST_CASE("help / visibility", "[help][visibility]") {
 TEST_CASE("help / column alignment", "[help][layout]") {
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg();
-    optparse_help(cap.fp(), kTypical, -1, &cfg);
+    optparse_help(test_out, cap.fp(), kTypical, -1, &cfg);
     const std::string out = cap.read();
     INFO(out);
 
@@ -236,7 +240,7 @@ TEST_CASE("help / column alignment", "[help][layout]") {
         };
         CaptureFile            cap2;
         optparse_help_config_t cfg2 = fixed_cfg();
-        optparse_help(cap2.fp(), opts, -1, &cfg2);
+        optparse_help(test_out, cap2.fp(), opts, -1, &cfg2);
         std::string out2 = cap2.read();
         INFO(out2);
 
@@ -261,7 +265,7 @@ TEST_CASE("help / line width constraint", "[help][width]") {
 
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg(width);
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO("width=" << width);
     INFO(out);
@@ -288,7 +292,7 @@ TEST_CASE("help / word boundary wrapping", "[help][width]") {
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg(40);
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
@@ -303,7 +307,7 @@ TEST_CASE("help / explicit newline in description", "[help][width]") {
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg();
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
@@ -325,7 +329,7 @@ TEST_CASE("help / config: min_desc pushes desc column right", "[help][config]") 
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg(80, 40, 50);
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
@@ -344,7 +348,7 @@ TEST_CASE("help / config: max_left causes overflow to next line", "[help][config
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg(80, 26, 20);
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
@@ -364,7 +368,7 @@ TEST_CASE("help / config: very small width does not crash", "[help][config][edge
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg(10);
-    REQUIRE_NOTHROW(optparse_help(cap.fp(), opts, -1, &cfg));
+    REQUIRE_NOTHROW(optparse_help(test_out, cap.fp(), opts, -1, &cfg));
     REQUIRE(!cap.read().empty());
 }
 
@@ -376,7 +380,7 @@ TEST_CASE("help / short-only options", "[help][layout]") {
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg();
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
@@ -398,7 +402,7 @@ TEST_CASE("help / long-only options alignment", "[help][layout]") {
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg();
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
@@ -419,17 +423,17 @@ TEST_CASE("help / mixed multiline descriptions", "[help][layout][width]") {
         {0, 0, OPTPARSE_NONE, NULL},
     };
 
-    const int width = 60;
+    const int              width = 60;
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg(width);
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
     REQUIRE(all_lines_within(out, width));
 
-    auto lines = split_lines(out);
-    int desc_col = find_col(out, "Set the processing");
+    auto lines    = split_lines(out);
+    int  desc_col = find_col(out, "Set the processing");
     REQUIRE(desc_col > 0);
 
     // Check if the line after \n is indented correctly
@@ -451,7 +455,7 @@ TEST_CASE("help / custom argname", "[help][argname]") {
     };
     CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg();
-    optparse_help(cap.fp(), opts, -1, &cfg);
+    optparse_help(test_out, cap.fp(), opts, -1, &cfg);
     std::string out = cap.read();
     INFO(out);
 
@@ -462,7 +466,7 @@ TEST_CASE("help / custom argname", "[help][argname]") {
 
 TEST_CASE("usage / basic usage", "[usage]") {
     CaptureFile cap;
-    optparse_usage(cap.fp(), "testapp", NULL, -1, NULL);
+    optparse_usage(test_out, cap.fp(), "testapp", NULL, -1, NULL);
     std::string out = cap.read();
     INFO(out);
     REQUIRE(out == "Usage: testapp\n");
@@ -474,7 +478,7 @@ TEST_CASE("usage / with options", "[usage]") {
         {0, 0, OPTPARSE_NONE, NULL},
     };
     CaptureFile cap;
-    optparse_usage(cap.fp(), "testapp", opts, -1, NULL);
+    optparse_usage(test_out, cap.fp(), "testapp", opts, -1, NULL);
     std::string out = cap.read();
     INFO(out);
     REQUIRE(out == "Usage: testapp [options]\n");
@@ -482,7 +486,7 @@ TEST_CASE("usage / with options", "[usage]") {
 
 TEST_CASE("usage / with pos args", "[usage]") {
     CaptureFile cap;
-    optparse_usage(cap.fp(), "testapp", NULL, -1, "SRC DEST");
+    optparse_usage(test_out, cap.fp(), "testapp", NULL, -1, "SRC DEST");
     std::string out = cap.read();
     INFO(out);
     REQUIRE(out == "Usage: testapp SRC DEST\n");
@@ -494,7 +498,7 @@ TEST_CASE("usage / full usage", "[usage]") {
         {0, 0, OPTPARSE_NONE, NULL},
     };
     CaptureFile cap;
-    optparse_usage(cap.fp(), "testapp", opts, -1, "FILE...");
+    optparse_usage(test_out, cap.fp(), "testapp", opts, -1, "FILE...");
     std::string out = cap.read();
     INFO(out);
     REQUIRE(out == "Usage: testapp [options] FILE...\n");
@@ -510,21 +514,21 @@ TEST_CASE("long / short option parsing without optstring", "[long][parsing]") {
     };
 
     SECTION("simple short option") {
-        char* argv[] = {(char*)"app", (char*)"-v", NULL};
+        char*      argv[] = {(char*)"app", (char*)"-v", NULL};
         optparse_t options;
         optparse_init(&options, argv);
         int longindex = -1;
-        int r = optparse_long(&options, opts, &longindex);
+        int r         = optparse_long(&options, opts, &longindex);
         REQUIRE(r == 'v');
         REQUIRE(longindex == 0);
     }
 
     SECTION("short option with required argument") {
-        char* argv[] = {(char*)"app", (char*)"-o", (char*)"file.txt", NULL};
+        char*      argv[] = {(char*)"app", (char*)"-o", (char*)"file.txt", NULL};
         optparse_t options;
         optparse_init(&options, argv);
         int longindex = -1;
-        int r = optparse_long(&options, opts, &longindex);
+        int r         = optparse_long(&options, opts, &longindex);
         REQUIRE(r == 'o');
         REQUIRE(longindex == 1);
         REQUIRE(std::string(options.optarg) == "file.txt");
@@ -536,10 +540,10 @@ TEST_CASE("long / short option parsing without optstring", "[long][parsing]") {
             {"b", 'b', OPTPARSE_NONE, "B"},
             {0, 0, OPTPARSE_NONE, NULL},
         };
-        char* argv[] = {(char*)"app", (char*)"-ab", NULL};
+        char*      argv[] = {(char*)"app", (char*)"-ab", NULL};
         optparse_t options;
         optparse_init(&options, argv);
-        
+
         int r1 = optparse_long(&options, opts2, NULL);
         REQUIRE(r1 == 'a');
         int r2 = optparse_long(&options, opts2, NULL);
@@ -547,7 +551,7 @@ TEST_CASE("long / short option parsing without optstring", "[long][parsing]") {
     }
 
     SECTION("invalid short option") {
-        char* argv[] = {(char*)"app", (char*)"-x", NULL};
+        char*      argv[] = {(char*)"app", (char*)"-x", NULL};
         optparse_t options;
         optparse_init(&options, argv);
         int r = optparse_long(&options, opts, NULL);
@@ -563,17 +567,17 @@ TEST_CASE("help / segmented output", "[help][segmented]") {
         {"file", 'f', OPTPARSE_REQUIRED, "Use file"},
         {"verbose", 'v', OPTPARSE_NONE, "Verbose output"},
     };
-    CaptureFile cap;
+    CaptureFile            cap;
     optparse_help_config_t cfg = fixed_cfg();
-    
+
     fprintf(cap.fp(), "Operations:\n");
-    optparse_help(cap.fp(), &opts[0], 2, &cfg);
+    optparse_help(test_out, cap.fp(), &opts[0], 2, &cfg);
     fprintf(cap.fp(), "\nGeneral:\n");
-    optparse_help(cap.fp(), &opts[2], 2, &cfg);
-    
+    optparse_help(test_out, cap.fp(), &opts[2], 2, &cfg);
+
     std::string out = cap.read();
     INFO(out);
-    
+
     REQUIRE(out.find("Operations:") != std::string::npos);
     REQUIRE(out.find("--create") != std::string::npos);
     REQUIRE(out.find("--extract") != std::string::npos);

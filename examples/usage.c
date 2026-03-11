@@ -47,23 +47,27 @@ static int term_width(int fallback) {
     return fallback;
 }
 
+static void out(const char* s, int len, void* f) {
+    fwrite(s, 1, (size_t)len, (FILE*)f);
+}
+
 static void print_help() {
     optparse_help_config_t cfg = OPTPARSE_HELP_CONFIG_INIT;
     cfg.width                  = term_width(80);
 
-    optparse_usage(stderr, "usage", longopts, -1, "SOURCE [DEST]");
+    optparse_usage(out, stderr, "usage", longopts, -1, "SOURCE [DEST]");
 
     fprintf(stderr, "\nConvert SOURCE from one structured text format to another.\n"
                     "When DEST is omitted, output is written to stdout.\n");
 
     fprintf(stderr, "\nInput options:\n");
-    optparse_help(stderr, &longopts[0], OPTIDX_INPUT, &cfg);
+    optparse_help(out, stderr, &longopts[0], OPTIDX_INPUT, &cfg);
 
     fprintf(stderr, "\nOutput options:\n");
-    optparse_help(stderr, &longopts[OPTIDX_INPUT], OPTIDX_OUTPUT, &cfg);
+    optparse_help(out, stderr, &longopts[OPTIDX_INPUT], OPTIDX_OUTPUT, &cfg);
 
     fprintf(stderr, "\nGeneral options:\n");
-    optparse_help(stderr, &longopts[OPTIDX_INPUT + OPTIDX_OUTPUT], OPTIDX_GENERAL, &cfg);
+    optparse_help(out, stderr, &longopts[OPTIDX_INPUT + OPTIDX_OUTPUT], OPTIDX_GENERAL, &cfg);
 
     fprintf(stderr, "\nExamples:\n"
                     "  usage -f json -o out.csv data.json\n"

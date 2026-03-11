@@ -11,6 +11,10 @@ enum {
     OPT_VERBOSE,
 };
 
+static void out(const char* s, int len, void* f) {
+    fwrite(s, 1, (size_t)len, (FILE*)f);
+}
+
 int main(int argc, char** argv) {
     (void)argc;
     optparse_long_t longopts[] = {
@@ -47,9 +51,9 @@ int main(int argc, char** argv) {
                 exit(EXIT_SUCCESS);
                 break;
             case 'h':
-                optparse_usage(stderr, "long", longopts, -1, "[args...]");
+                optparse_usage(out, stderr, "long", longopts, -1, "[args...]");
                 fprintf(stderr, "\nOptions:\n");
-                optparse_help(stderr, longopts, -1, NULL);
+                optparse_help(out, stderr, longopts, -1, NULL);
                 fprintf(stderr, "\n");
                 exit(EXIT_SUCCESS);
                 break;
