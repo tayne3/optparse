@@ -5,7 +5,7 @@
  * A C99 replacement for POSIX getopt() / GNU getopt_long() that fixes three
  * fundamental flaws of the standard:
  *
- *  1. All state is stored in a user-supplied struct — fully reentrant and
+ *  1. All state is stored in a userdata-supplied struct — fully reentrant and
  *     thread-safe; nested sub-argument parsing is supported naturally.
  *
  *  2. The parser can be reset at any time via optparse_init(), and
@@ -23,9 +23,6 @@
  */
 #ifndef OPTPARSE_OPTPARSE_H
 #define OPTPARSE_OPTPARSE_H
-
-#include <stddef.h>
-#include <stdio.h>
 
 #ifndef OPTPARSE_API
 #define OPTPARSE_API
@@ -78,51 +75,95 @@ typedef struct optparse_long {
     const char*        argname; /* placeholder name, default "ARG" */
 } optparse_long_t;
 
-/// @brief Initialize parser state; must be called before any parse call.
-/// @param options parser state to initialize
-/// @param argv    argument vector (typically from main()); argv[0] is skipped
+/**
+ * @brief Initialize parser state; must be called before any parse call.
+ * @param options parser state to initialize
+ * @param argv    argument vector (typically from main()); argv[0] is skipped
+ */
 OPTPARSE_API void optparse_init(optparse_t* options, char** argv);
 
-/// @brief Parse next short option.
-/// @param options   parser state
-/// @param optstring getopt()-style option string: no colon = no argument, one colon = required, two colons = optional
-/// @return option character, -1 when done, '?' on error
+/**
+ * @brief Parse next short option.
+ * @param options   parser state
+ * @param optstring getopt()-style option string: no colon = no argument, one colon = required, two colons = optional
+ * @return option character, -1 when done, '?' on error
+ */
 OPTPARSE_API int optparse(optparse_t* options, const char* optstring);
 
-/// @brief Parse next option, supporting both short and GNU-style long options.
-/// @param options   parser state
-/// @param longopts  long option descriptor array, terminated with {0, 0, OPTPARSE_NONE, NULL}
-/// @param longindex receives index into longopts, or -1 for short options
-/// @return option character / shortname, -1 when done, '?' on error
+/**
+ * @brief Parse next option, supporting both short and GNU-style long options.
+ * @param options   parser state
+ * @param longopts  long option descriptor array, terminated with {0, 0, OPTPARSE_NONE, NULL}
+ * @param longindex receives index into longopts, or -1 for short options
+ * @return option character / shortname, -1 when done, '?' on error
+ */
 OPTPARSE_API int optparse_long(optparse_t* options, const optparse_long_t* longopts, int* longindex);
 
-/// @brief Retrieve next non-option argument; useful for stepping over sub-commands.
-/// @param options parser state
-/// @return next non-option argument string, or NULL if none remain
+/**
+ * @brief Retrieve next non-option argument; useful for stepping over sub-commands.
+ * @param options parser state
+ * @return next non-option argument string, or NULL if none remain
+ */
 OPTPARSE_API char* optparse_arg(optparse_t* options);
 
+/**
+ * @brief Help formatter layout configuration.
+ *
+ * Controls column widths for optparse_help() output:
+ *
+ *   |<----------- width ----------->|
+ *   |  -o, --option=ARG  description|
+ *   |<--- max_left --->|            |
+ *   |                  |<-min_desc->|
+ *   |-------------------------------|
+ */
 typedef struct optparse_help_config {
-    int width;
-    int min_desc;
-    int max_left;
+    int width;    /**< total line width */
+    int min_desc; /**< minimum columns reserved for description */
+    int max_left; /**< maximum columns for option part before forcing a line break */
 } optparse_help_config_t;
 
 #define OPTPARSE_HELP_CONFIG_INIT {80, 26, 36}
 
-/// @brief Print usage line to out.
-/// @param out destination.
-/// @param progname name of the program.
-/// @param longopts long option descriptor array (optional, used to detect if [options] should be shown).
-/// @param count number of options in longopts, or -1 to scan for sentinel.
-/// @param pos_args positional arguments argdesc (optional, e.g., "SOURCE DEST").
-OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse_long_t* longopts, int count,
-                                 const char* pos_args);
+/**
+ * @brief Output callback for help/usage formatting.
+ *
+ * The formatter calls this function to emit text fragments.
+ * Typical implementations: fwrite wrapper, string buffer append, etc.
+ *
+ * @param str  text fragment (NOT null-terminated)
+ * @param len  byte count of @p str
+ * @param userdata opaque context passed through from the caller
+ */
+typedef void (*optparse_write_cb)(const char* str, int len, void* userdata);
 
-/// @brief Print formatted help to out.
-/// @param out destination, typically stdout or stderr.
-/// @param longopts same array passed to optparse_long().
-/// @param count number of options in longopts, or -1 to scan for sentinel.
-OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, int count,
+/**
+ * @brief Print usage line via callback.
+ *
+ * Output format: "Usage: <progname> [options] <pos_args>\n"
+ *
+ * @param write    output callback
+ * @param userdata     opaque context forwarded to @p write
+ * @param progname program name (typically argv[0])
+ * @param longopts long option array; if non-NULL and contains visible options, "[options]" is appended (may be NULL)
+ * @param count    element count of @p longopts, or -1 to auto-detect sentinel
+ * @param pos_args positional argument synopsis appended after "[options]" (may be NULL, e.g. "SOURCE DEST")
+ */
+OPTPARSE_API void optparse_usage(optparse_write_cb write, void* userdata, const char* progname,
+                                 const optparse_long_t* longopts, int count, const char* pos_args);
+
+/**
+ * @brief Print formatted option help via callback.
+ *
+ * Iterates @p longopts; entries whose argdesc is NULL or empty are skipped.
+ *
+ * @param write    output callback
+ * @param userdata     opaque context forwarded to @p write
+ * @param longopts same descriptor array passed to optparse_long()
+ * @param count    element count of @p longopts, or -1 to auto-detect sentinel
+ * @param cfg      layout config, or NULL for defaults (see OPTPARSE_HELP_CONFIG_INIT)
+ */
+OPTPARSE_API void optparse_help(optparse_write_cb write, void* userdata, const optparse_long_t* longopts, int count,
                                 const optparse_help_config_t* cfg);
 
 #ifdef __cplusplus
@@ -134,8 +175,6 @@ OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, int 
  * ====================================================================== */
 #ifdef OPTPARSE_IMPLEMENTATION
 
-#include <string.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -143,6 +182,26 @@ extern "C" {
 #define OPTPARSE_MSG_INVALID "invalid option"
 #define OPTPARSE_MSG_MISSING "option requires an argument"
 #define OPTPARSE_MSG_TOOMANY "option takes no arguments"
+
+static inline int optparse__strlen(const char* s) {
+    int len = 0;
+    while (s && s[len]) { len++; }
+    return len;
+}
+
+static inline void optparse__write_c(optparse_write_cb write, void* userdata, char c) {
+    char buf[1];
+    buf[0] = c;
+    write(buf, 1, userdata);
+}
+
+static inline void optparse__write_s(optparse_write_cb write, void* userdata, const char* s) {
+    if (s) { write(s, optparse__strlen(s), userdata); }
+}
+
+static inline void optparse__write_n(optparse_write_cb write, void* userdata, char c, int n) {
+    for (int i = 0; i < n; ++i) { optparse__write_c(write, userdata, c); }
+}
 
 static int optparse__error(optparse_t* options, const char* msg, const char* data) {
     unsigned int p   = 0;
@@ -417,54 +476,71 @@ static int optparse__help_width(const optparse_long_t* opt) {
 
     int w = 0;
     if (has_long) {
-        w = 8 + (int)strlen(opt->longname);  // "  -x, --longname" / "      --longname"
+        w = 8 + optparse__strlen(opt->longname);  // "  -x, --longname" / "      --longname"
     } else if (has_short) {
         w = 4;  // "  -x"
     }
 
     switch (opt->argtype) {
-        case OPTPARSE_REQUIRED: w += 1 + (int)strlen(argname); break;  // =ARG
-        case OPTPARSE_OPTIONAL: w += 3 + (int)strlen(argname); break;  // [=ARG]
+        case OPTPARSE_REQUIRED: w += 1 + optparse__strlen(argname); break;  // =ARG
+        case OPTPARSE_OPTIONAL: w += 3 + optparse__strlen(argname); break;  // [=ARG]
         default: break;
     }
     return w;
 }
 
-static int optparse__help_option(const optparse_long_t* opt, int col, FILE* out) {
+static int optparse__help_option(optparse_write_cb write, void* userdata, const optparse_long_t* opt, int col) {
     const int   has_short = (opt->shortname >= 33 && opt->shortname < 127);
     const int   has_long  = (opt->longname && opt->longname[0]);
     const char* argname   = opt->argname ? opt->argname : "ARG";
 
     int printed = 0;
     if (has_short && has_long) {
-        printed = fprintf(out, "  -%c, --%s", (char)opt->shortname, opt->longname);
+        optparse__write_s(write, userdata, "  -");
+        optparse__write_c(write, userdata, (char)opt->shortname);
+        optparse__write_s(write, userdata, ", --");
+        optparse__write_s(write, userdata, opt->longname);
+        printed = 8 + optparse__strlen(opt->longname);
     } else if (has_short) {
-        printed = fprintf(out, "  -%c", (char)opt->shortname);
+        optparse__write_s(write, userdata, "  -");
+        optparse__write_c(write, userdata, (char)opt->shortname);
+        printed = 4;
     } else {
-        printed = fprintf(out, "      --%s", has_long ? opt->longname : "");
+        optparse__write_s(write, userdata, "      --");
+        if (has_long) { optparse__write_s(write, userdata, opt->longname); }
+        printed = 8 + (has_long ? optparse__strlen(opt->longname) : 0);
     }
 
     switch (opt->argtype) {
-        case OPTPARSE_REQUIRED: printed += fprintf(out, "=%s", argname); break;
-        case OPTPARSE_OPTIONAL: printed += fprintf(out, "[=%s]", argname); break;
+        case OPTPARSE_REQUIRED:
+            optparse__write_c(write, userdata, '=');
+            optparse__write_s(write, userdata, argname);
+            printed += 1 + optparse__strlen(argname);
+            break;
+        case OPTPARSE_OPTIONAL:
+            optparse__write_s(write, userdata, "[=");
+            optparse__write_s(write, userdata, argname);
+            optparse__write_c(write, userdata, ']');
+            printed += 3 + optparse__strlen(argname);
+            break;
         default: break;
     }
-    while (printed < col) {
-        fputc(' ', out);
-        ++printed;
+    if (printed < col) {
+        optparse__write_n(write, userdata, ' ', col - printed);
+        printed = col;
     }
     return printed;
 }
 
-static void optparse__help_desc(const char* desc, int col, int width, FILE* out) {
+static void optparse__help_desc(optparse_write_cb write, void* userdata, const char* desc, int col, int width) {
     int avail = width - col;
     int pos   = 0;
     if (avail < 10) { avail = 10; }
 
     while (*desc) {
         if (*desc == '\n') {
-            fputc('\n', out);
-            fprintf(out, "%*s", col, "");
+            optparse__write_c(write, userdata, '\n');
+            optparse__write_n(write, userdata, ' ', col);
             pos = 0;
             ++desc;
             continue;
@@ -473,25 +549,26 @@ static void optparse__help_desc(const char* desc, int col, int width, FILE* out)
         for (const char* w = desc; *w && *w != ' ' && *w != '\n'; ++w, ++wlen) {}
 
         if (pos > 0 && pos + 1 + wlen > avail) {
-            fputc('\n', out);
-            fprintf(out, "%*s", col, "");
+            optparse__write_c(write, userdata, '\n');
+            optparse__write_n(write, userdata, ' ', col);
             pos = 0;
         }
         if (pos > 0) {
-            fputc(' ', out);
+            optparse__write_c(write, userdata, ' ');
             ++pos;
         }
-        fwrite(desc, 1, (size_t)wlen, out);
+        write(desc, wlen, userdata);
         pos += wlen;
         desc += wlen;
         while (*desc == ' ') { ++desc; }
     }
-    fputc('\n', out);
+    optparse__write_c(write, userdata, '\n');
 }
 
-OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse_long_t* longopts, int count,
-                                 const char* pos_args) {
-    fprintf(out, "Usage: %s", progname);
+OPTPARSE_API void optparse_usage(optparse_write_cb write, void* userdata, const char* progname,
+                                 const optparse_long_t* longopts, int count, const char* pos_args) {
+    optparse__write_s(write, userdata, "Usage: ");
+    optparse__write_s(write, userdata, progname);
     if (longopts) {
         int has_opts = 0;
         for (int i = 0; (count < 0 || i < count) && !optparse__is_end(&longopts[i]); ++i) {
@@ -500,15 +577,18 @@ OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse
                 break;
             }
         }
-        if (has_opts) { fprintf(out, " [options]"); }
+        if (has_opts) { optparse__write_s(write, userdata, " [options]"); }
     }
-    if (pos_args && pos_args[0]) { fprintf(out, " %s", pos_args); }
-    fputc('\n', out);
+    if (pos_args && pos_args[0]) {
+        optparse__write_c(write, userdata, ' ');
+        optparse__write_s(write, userdata, pos_args);
+    }
+    optparse__write_c(write, userdata, '\n');
 }
 
-OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, int count,
+OPTPARSE_API void optparse_help(optparse_write_cb write, void* userdata, const optparse_long_t* longopts, int count,
                                 const optparse_help_config_t* cfg) {
-    if (!out || !longopts || !count || optparse__is_end(&longopts[0])) { return; }
+    if (!write || !longopts || !count || optparse__is_end(&longopts[0])) { return; }
     optparse_help_config_t c = optparse__resolve_config(cfg);
 
     const int desc_max = c.min_desc >= c.width ? c.width / 2 : c.width - c.min_desc;
@@ -531,13 +611,13 @@ OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, int 
 
         int lw = optparse__help_width(opt);
         if (lw >= desc_col) {
-            optparse__help_option(opt, 0, out);
-            fputc('\n', out);
-            fprintf(out, "%*s", desc_col, "");
+            optparse__help_option(write, userdata, opt, 0);
+            optparse__write_c(write, userdata, '\n');
+            optparse__write_n(write, userdata, ' ', desc_col);
         } else {
-            optparse__help_option(opt, desc_col, out);
+            optparse__help_option(write, userdata, opt, desc_col);
         }
-        optparse__help_desc(opt->argdesc, desc_col, c.width, out);
+        optparse__help_desc(write, userdata, opt->argdesc, desc_col, c.width);
     }
 }
 
