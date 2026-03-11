@@ -107,20 +107,23 @@ typedef struct optparse_help_config {
     int max_left;
 } optparse_help_config_t;
 
-#define OPTPARSE_HELP_CONFIG_DEFAULT {80, 26, 36}
+#define OPTPARSE_HELP_CONFIG_INIT {80, 26, 36}
 
 /// @brief Print usage line to out.
 /// @param out destination.
 /// @param progname name of the program.
 /// @param longopts long option descriptor array (optional, used to detect if [options] should be shown).
+/// @param count number of options in longopts, or -1 to scan for sentinel.
 /// @param pos_args positional arguments argdesc (optional, e.g., "SOURCE DEST").
-OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse_long_t* longopts,
+OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse_long_t* longopts, int count,
                                  const char* pos_args);
 
 /// @brief Print formatted help to out.
 /// @param out destination, typically stdout or stderr.
 /// @param longopts same array passed to optparse_long().
-OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, const optparse_help_config_t* cfg);
+/// @param count number of options in longopts, or -1 to scan for sentinel.
+OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, int count,
+                                const optparse_help_config_t* cfg);
 
 #ifdef __cplusplus
 }
@@ -137,7 +140,7 @@ OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, cons
 #define OPTPARSE_MSG_MISSING "option requires an argument"
 #define OPTPARSE_MSG_TOOMANY "option takes no arguments"
 
-static int optparse__set_error(optparse_t* options, const char* msg, const char* data) {
+static int optparse__error(optparse_t* options, const char* msg, const char* data) {
     unsigned int p   = 0;
     const char*  sep = " -- '";
 
@@ -155,23 +158,19 @@ static inline int optparse__is_dashdash(const char* arg) {
     return arg && arg[0] == '-' && arg[1] == '-' && arg[2] == '\0';
 }
 
-static inline int optparse__is_shortopt(const char* arg) {
+static inline int optparse__is_short(const char* arg) {
     return arg && arg[0] == '-' && arg[1] != '-' && arg[1] != '\0';
 }
 
-static inline int optparse__is_longopt(const char* arg) {
+static inline int optparse__is_long(const char* arg) {
     return arg && arg[0] == '-' && arg[1] == '-' && arg[2] != '\0';
 }
 
-static void optparse__shift_args(char** argv, int from, int to, int count) {
-    for (int k = 0; k < count; ++k) {
-        char* tmp = argv[from + k];
-        for (int j = from + k; j > to + k; --j) { argv[j] = argv[j - 1]; }
-        argv[to + k] = tmp;
-    }
+static inline int optparse__is_end(const optparse_long_t* opt) {
+    return !opt->longname && !opt->shortname;
 }
 
-static int optparse__get_short_argtype(const char* optstring, char c) {
+static int optparse__type_short(const char* optstring, char c) {
     if (c == ':') { return -1; }
     for (; *optstring && c != *optstring; ++optstring) {}
     if (optstring[0] == '\0') { return -1; }
@@ -179,11 +178,22 @@ static int optparse__get_short_argtype(const char* optstring, char c) {
     return 0;
 }
 
-static inline int optparse__longopts_end(const optparse_long_t* longopts, int i) {
-    return !longopts[i].longname && !longopts[i].shortname;
+static int optparse__type_long(const optparse_long_t* longopts, int shortname) {
+    for (int i = 0; !optparse__is_end(&longopts[i]); ++i) {
+        if (longopts[i].shortname == shortname) { return (int)longopts[i].argtype; }
+    }
+    return -1;
 }
 
-static int optparse__longopts_match(const char* longname, const char* option) {
+static void optparse__permute(char** argv, int from, int to, int count) {
+    for (int k = 0; k < count; ++k) {
+        char* tmp = argv[from + k];
+        for (int j = from + k; j > to + k; --j) { argv[j] = argv[j - 1]; }
+        argv[to + k] = tmp;
+    }
+}
+
+static int optparse__match(const char* longname, const char* option) {
     const char *a = option, *n = longname;
     if (!longname) { return 0; }
     for (; *a && *n && *a != '='; ++a, ++n) {
@@ -192,24 +202,14 @@ static int optparse__longopts_match(const char* longname, const char* option) {
     return *n == '\0' && (*a == '\0' || *a == '=');
 }
 
-static char* optparse__longopts_arg(char* option) {
+static char* optparse__get_value(char* option) {
     for (; *option && *option != '='; ++option) {}
     return *option == '=' ? option + 1 : NULL;
 }
 
-OPTPARSE_API void optparse_init(optparse_t* options, char** argv) {
-    options->errmsg[0] = '\0';
-    options->optarg    = NULL;
-    options->argv      = argv;
-    options->permute   = 1;
-    options->optind    = argv[0] ? 1 : 0;
-    options->optopt    = 0;
-    options->subopt    = 0;
-}
-
-static int optparse__get_long_argtype(const optparse_long_t* longopts, int shortname) {
-    for (int i = 0; !optparse__longopts_end(longopts, i); ++i) {
-        if (longopts[i].shortname == shortname) { return (int)longopts[i].argtype; }
+static int optparse__find_short(const optparse_long_t* longopts, int shortname) {
+    for (int i = 0; !optparse__is_end(&longopts[i]); ++i) {
+        if (longopts[i].shortname == shortname) { return i; }
     }
     return -1;
 }
@@ -229,13 +229,12 @@ static int optparse__parse_short(optparse_t* options, const char* optstring, con
         ++options->optind;
         return -1;
     }
-    if (!optparse__is_shortopt(option)) { return -1; }
+    if (!optparse__is_short(option)) { return -1; }
 
     option += options->subopt + 1;
     options->optopt = option[0];
-    type =
-        optstring ? optparse__get_short_argtype(optstring, option[0]) : optparse__get_long_argtype(longopts, option[0]);
-    next = options->argv[options->optind + 1];
+    type            = optstring ? optparse__type_short(optstring, option[0]) : optparse__type_long(longopts, option[0]);
+    next            = options->argv[options->optind + 1];
 
     switch (type) {
         case OPTPARSE_NONE:
@@ -258,7 +257,7 @@ static int optparse__parse_short(optparse_t* options, const char* optstring, con
             } else {
                 char str[2]     = {option[0], 0};
                 options->optarg = NULL;
-                return optparse__set_error(options, OPTPARSE_MSG_MISSING, str);
+                return optparse__error(options, OPTPARSE_MSG_MISSING, str);
             }
             return option[0];
 
@@ -273,25 +272,74 @@ static int optparse__parse_short(optparse_t* options, const char* optstring, con
             char str[2] = {option[0], 0};
             ++options->optind;
             options->subopt = 0;
-            return optparse__set_error(options, OPTPARSE_MSG_INVALID, str);
+            return optparse__error(options, OPTPARSE_MSG_INVALID, str);
         }
     }
+}
+
+static int optparse__parse_long(optparse_t* options, const optparse_long_t* longopts, int* longindex) {
+    char* option = options->argv[options->optind];
+
+    options->errmsg[0] = '\0';
+    options->optopt    = 0;
+    options->optarg    = NULL;
+    option += 2;
+    ++options->optind;
+
+    for (int i = 0; !optparse__is_end(&longopts[i]); ++i) {
+        const char* name = longopts[i].longname;
+        if (!optparse__match(name, option)) { continue; }
+
+        if (longindex) { *longindex = i; }
+
+        options->optopt = longopts[i].shortname;
+        char* val       = optparse__get_value(option);
+
+        if (longopts[i].argtype == OPTPARSE_NONE && val != NULL) {
+            return optparse__error(options, OPTPARSE_MSG_TOOMANY, name);
+        }
+
+        if (val != NULL) {
+            options->optarg = val;
+        } else if (longopts[i].argtype == OPTPARSE_REQUIRED) {
+            options->optarg = options->argv[options->optind];
+            if (options->optarg == NULL) {
+                return optparse__error(options, OPTPARSE_MSG_MISSING, name);
+            } else {
+                ++options->optind;
+            }
+        }
+
+        return options->optopt;
+    }
+
+    return optparse__error(options, OPTPARSE_MSG_INVALID, option);
+}
+
+OPTPARSE_API void optparse_init(optparse_t* options, char** argv) {
+    options->errmsg[0] = '\0';
+    options->optarg    = NULL;
+    options->argv      = argv;
+    options->permute   = 1;
+    options->optind    = argv[0] ? 1 : 0;
+    options->optopt    = 0;
+    options->subopt    = 0;
 }
 
 OPTPARSE_API int optparse(optparse_t* options, const char* optstring) {
     for (int i = options->optind; options->argv[i]; ++i) {
         if (optparse__is_dashdash(options->argv[i])) {
             int original_optind = options->optind;
-            if (i > original_optind) { optparse__shift_args(options->argv, i, original_optind, 1); }
+            if (i > original_optind) { optparse__permute(options->argv, i, original_optind, 1); }
             options->optind = original_optind + 1;
             return -1;
         }
-        if (optparse__is_shortopt(options->argv[i])) {
+        if (optparse__is_short(options->argv[i])) {
             int original_optind = options->optind;
             options->optind     = i;
             int r               = optparse__parse_short(options, optstring, NULL);
             int consumed        = options->optind - i;
-            if (i > original_optind) { optparse__shift_args(options->argv, i, original_optind, consumed); }
+            if (i > original_optind) { optparse__permute(options->argv, i, original_optind, consumed); }
             options->optind = original_optind + consumed;
             return r;
         }
@@ -310,68 +358,18 @@ OPTPARSE_API char* optparse_arg(optparse_t* options) {
     return option;
 }
 
-static void optparse__lookup_long_index(optparse_t* options, const optparse_long_t* longopts, int* longindex) {
-    for (int i = 0; !optparse__longopts_end(longopts, i); ++i) {
-        if (longopts[i].shortname == options->optopt) {
-            *longindex = i;
-            return;
-        }
-    }
-    *longindex = -1;
-}
-
-static int optparse__parse_long(optparse_t* options, const optparse_long_t* longopts, int* longindex) {
-    char* option = options->argv[options->optind];
-
-    options->errmsg[0] = '\0';
-    options->optopt    = 0;
-    options->optarg    = NULL;
-    option += 2;
-    ++options->optind;
-
-    for (int i = 0; !optparse__longopts_end(longopts, i); ++i) {
-        const char* name = longopts[i].longname;
-        if (!optparse__longopts_match(name, option)) { continue; }
-
-        if (longindex) { *longindex = i; }
-
-        options->optopt = longopts[i].shortname;
-        char* arg       = optparse__longopts_arg(option);
-
-        if (longopts[i].argtype == OPTPARSE_NONE && arg != NULL) {
-            return optparse__set_error(options, OPTPARSE_MSG_TOOMANY, name);
-        }
-
-        if (arg != NULL) {
-            options->optarg = arg;
-        } else if (longopts[i].argtype == OPTPARSE_REQUIRED) {
-            options->optarg = options->argv[options->optind];
-            if (options->optarg == NULL) {
-                return optparse__set_error(options, OPTPARSE_MSG_MISSING, name);
-            } else {
-                ++options->optind;
-            }
-        }
-
-        return options->optopt;
-    }
-
-    return optparse__set_error(options, OPTPARSE_MSG_INVALID, option);
-}
-
 OPTPARSE_API int optparse_long(optparse_t* options, const optparse_long_t* longopts, int* longindex) {
-    int i;
-    for (i = options->optind; options->argv[i]; ++i) {
+    for (int i = options->optind; options->argv[i]; ++i) {
         char* arg = options->argv[i];
         if (optparse__is_dashdash(arg)) {
             int original_optind = options->optind;
-            if (i > original_optind) { optparse__shift_args(options->argv, i, original_optind, 1); }
+            if (i > original_optind) { optparse__permute(options->argv, i, original_optind, 1); }
             options->optind = original_optind + 1;
             return -1;
         }
 
-        int is_short = optparse__is_shortopt(arg);
-        int is_long  = optparse__is_longopt(arg);
+        int is_short = optparse__is_short(arg);
+        int is_long  = optparse__is_long(arg);
 
         if (is_short || is_long) {
             int original_optind = options->optind;
@@ -379,13 +377,13 @@ OPTPARSE_API int optparse_long(optparse_t* options, const optparse_long_t* longo
             int r;
             if (is_short) {
                 r = optparse__parse_short(options, NULL, longopts);
-                if (r != -1 && longindex != NULL) { optparse__lookup_long_index(options, longopts, longindex); }
+                if (r != -1 && longindex != NULL) { *longindex = optparse__find_short(longopts, options->optopt); }
             } else {
                 r = optparse__parse_long(options, longopts, longindex);
             }
 
             int consumed = options->optind - i;
-            if (i > original_optind) { optparse__shift_args(options->argv, i, original_optind, consumed); }
+            if (i > original_optind) { optparse__permute(options->argv, i, original_optind, consumed); }
             options->optind = original_optind + consumed;
             return r;
         }
@@ -399,15 +397,14 @@ OPTPARSE_API int optparse_long(optparse_t* options, const optparse_long_t* longo
 }
 
 static inline optparse_help_config_t optparse__resolve_config(const optparse_help_config_t* cfg) {
-    optparse_help_config_t r = cfg ? *cfg : (optparse_help_config_t)OPTPARSE_HELP_CONFIG_DEFAULT;
+    optparse_help_config_t r = cfg ? *cfg : (optparse_help_config_t)OPTPARSE_HELP_CONFIG_INIT;
     if (r.width <= 0) { r.width = 80; }
     if (r.min_desc <= 0) { r.min_desc = 26; }
     if (r.max_left <= 0) { r.max_left = 36; }
     return r;
 }
 
-// Width of the left column for one option entry (without trailing spaces).
-static int optparse__help_leftwidth(const optparse_long_t* opt) {
+static int optparse__help_width(const optparse_long_t* opt) {
     int         has_short = (opt->shortname >= 33 && opt->shortname < 127);
     int         has_long  = (opt->longname && opt->longname[0]);
     const char* argname   = opt->argname ? opt->argname : "ARG";
@@ -427,8 +424,7 @@ static int optparse__help_leftwidth(const optparse_long_t* opt) {
     return w;
 }
 
-// Print left column and pad to `col` chars.  Always consistent path.
-static int optparse__help_printleft(const optparse_long_t* opt, int col, FILE* out) {
+static int optparse__help_option(const optparse_long_t* opt, int col, FILE* out) {
     int         has_short = (opt->shortname >= 33 && opt->shortname < 127);
     int         has_long  = (opt->longname && opt->longname[0]);
     const char* argname   = opt->argname ? opt->argname : "ARG";
@@ -442,13 +438,11 @@ static int optparse__help_printleft(const optparse_long_t* opt, int col, FILE* o
         printed = fprintf(out, "      --%s", has_long ? opt->longname : "");
     }
 
-    // argtype suffix
     switch (opt->argtype) {
         case OPTPARSE_REQUIRED: printed += fprintf(out, "=%s", argname); break;
         case OPTPARSE_OPTIONAL: printed += fprintf(out, "[=%s]", argname); break;
         default: break;
     }
-    // pad to col
     while (printed < col) {
         fputc(' ', out);
         ++printed;
@@ -456,8 +450,7 @@ static int optparse__help_printleft(const optparse_long_t* opt, int col, FILE* o
     return printed;
 }
 
-/* Word-wrap argdesc; continuation lines indent to `col`. */
-static void optparse__help_printdesc(const char* desc, int col, int width, FILE* out) {
+static void optparse__help_desc(const char* desc, int col, int width, FILE* out) {
     int avail = width - col;
     int pos   = 0;
     if (avail < 10) { avail = 10; }
@@ -490,12 +483,12 @@ static void optparse__help_printdesc(const char* desc, int col, int width, FILE*
     fputc('\n', out);
 }
 
-OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse_long_t* longopts,
+OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse_long_t* longopts, int count,
                                  const char* pos_args) {
     fprintf(out, "Usage: %s", progname);
     if (longopts) {
         int has_opts = 0;
-        for (int i = 0; !optparse__longopts_end(longopts, i); ++i) {
+        for (int i = 0; (count < 0 || i < count) && !optparse__is_end(&longopts[i]); ++i) {
             if (longopts[i].longname || (longopts[i].shortname >= 33 && longopts[i].shortname < 127)) {
                 has_opts = 1;
                 break;
@@ -507,14 +500,16 @@ OPTPARSE_API void optparse_usage(FILE* out, const char* progname, const optparse
     fputc('\n', out);
 }
 
-OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, const optparse_help_config_t* cfg) {
+OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, int count,
+                                const optparse_help_config_t* cfg) {
+    if (!out || !longopts || !count || optparse__is_end(&longopts[0])) { return; }
     optparse_help_config_t c = optparse__resolve_config(cfg);
 
     int desc_max = c.min_desc >= c.width ? c.width / 2 : c.width - c.min_desc;
     int desc_col = 0, actual_max = 0;
-    for (int i = 0; !optparse__longopts_end(longopts, i); ++i) {
+    for (int i = 0; (count < 0 || i < count) && !optparse__is_end(&longopts[i]); ++i) {
         if (!longopts[i].argdesc || !longopts[i].argdesc[0]) { continue; }
-        int lw = optparse__help_leftwidth(&longopts[i]) + 2;
+        int lw = optparse__help_width(&longopts[i]) + 2;
         if (lw > actual_max) { actual_max = lw; }
         if (lw <= c.max_left && lw <= desc_max) {
             if (lw > desc_col) { desc_col = lw; }
@@ -524,19 +519,19 @@ OPTPARSE_API void optparse_help(FILE* out, const optparse_long_t* longopts, cons
     if (desc_col > desc_max) { desc_col = desc_max; }
     if (desc_col < 2) { desc_col = 2; }
 
-    for (int i = 0; !optparse__longopts_end(longopts, i); ++i) {
+    for (int i = 0; (count < 0 || i < count) && !optparse__is_end(&longopts[i]); ++i) {
         const optparse_long_t* opt = &longopts[i];
         if (!opt->argdesc || !opt->argdesc[0]) { continue; }
 
-        int lw = optparse__help_leftwidth(opt);
+        int lw = optparse__help_width(opt);
         if (lw >= desc_col) {
-            optparse__help_printleft(opt, 0, out);
+            optparse__help_option(opt, 0, out);
             fputc('\n', out);
             fprintf(out, "%*s", desc_col, "");
         } else {
-            optparse__help_printleft(opt, desc_col, out);
+            optparse__help_option(opt, desc_col, out);
         }
-        optparse__help_printdesc(opt->argdesc, desc_col, c.width, out);
+        optparse__help_desc(opt->argdesc, desc_col, c.width, out);
     }
 }
 
