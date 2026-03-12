@@ -1,89 +1,80 @@
-/* This is free and unencumbered software released into the public domain. */
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
+#define OPTPARSE_API static
 #define OPTPARSE_IMPLEMENTATION
-#include "../optparse.h"
+#include "optparse/optparse.h"
 
-static int cmd_echo(char **argv)
-{
-    int i, option;
-    bool newline = true;
+static int cmd_echo(char** argv) {
+    int             i, option;
+    bool            newline = true;
     struct optparse options;
 
     optparse_init(&options, argv);
     options.permute = 0;
     while ((option = optparse(&options, "hn")) != -1) {
         switch (option) {
-        case 'h':
-            puts("usage: echo [-hn] [ARG]...");
-            return 0;
-        case 'n':
-            newline = false;
-            break;
-        case '?':
-            fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
-            return 1;
+            case 'h': puts("usage: echo [-hn] [ARG]..."); return 0;
+            case 'n': newline = false; break;
+            case '?': fprintf(stderr, "%s: %s\n", argv[0], options.errmsg); return 1;
         }
     }
     argv += options.optind;
 
-    for (i = 0; argv[i]; i++) {
-        printf("%s%s", i  ? " " : "", argv[i]);
-    }
-    if (newline) {
-        putchar('\n');
-    }
+    for (i = 0; argv[i]; ++i) { printf("%s%s", i ? " " : "", argv[i]); }
+    if (newline) { putchar('\n'); }
 
     fflush(stdout);
     return !!ferror(stdout);
 }
 
-static int cmd_sleep(char **argv)
-{
-    int i, option;
+static int cmd_sleep(char** argv) {
+    int             i, option;
     struct optparse options;
 
     optparse_init(&options, argv);
     while ((option = optparse(&options, "h")) != -1) {
         switch (option) {
-        case 'h':
-            puts("usage: sleep [-h] [NUMBER]...");
-            return 0;
-        case '?':
-            fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
-            return 1;
+            case 'h': puts("usage: sleep [-h] [NUMBER]..."); return 0;
+            case '?': fprintf(stderr, "%s: %s\n", argv[0], options.errmsg); return 1;
         }
     }
 
-    for (i = 0; argv[i]; i++) {
-        if (sleep(atoi(argv[i]))) {
-            return 1;
+    for (i = 0; argv[i]; ++i) {
+        const int seconds = atoi(argv[i]);
+        if (seconds > 0) {
+#ifdef _WIN32
+            Sleep(seconds * 1000);
+#else
+            sleep(seconds);
+#endif
         }
     }
     return 0;
 }
 
-static void
-usage(FILE *f)
-{
+static void usage(FILE* f) {
     fprintf(f, "usage: example [-h] <echo|sleep> [OPTION]...\n");
 }
 
-int main(int argc, char **argv)
-{
-    int i, option;
-    char **subargv;
+int main(int argc, char** argv) {
+    int             i, option;
+    char**          subargv;
     struct optparse options;
 
     static const struct {
         char name[8];
-        int (*cmd)(char **);
+        int (*cmd)(char**);
     } cmds[] = {
-        {"echo",  cmd_echo },
+        {"echo", cmd_echo},
         {"sleep", cmd_sleep},
     };
     int ncmds = sizeof(cmds) / sizeof(*cmds);
@@ -93,13 +84,11 @@ int main(int argc, char **argv)
     options.permute = 0;
     while ((option = optparse(&options, "h")) != -1) {
         switch (option) {
-        case 'h':
-            usage(stdout);
-            return 0;
-        case '?':
-            usage(stderr);
-            fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
-            return 1;
+            case 'h': usage(stdout); return 0;
+            case '?':
+                usage(stderr);
+                fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
+                return 1;
         }
     }
 
@@ -110,10 +99,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    for (i = 0; i < ncmds; i++) {
-        if (!strcmp(cmds[i].name, subargv[0])) {
-            return cmds[i].cmd(subargv);
-        }
+    for (i = 0; i < ncmds; ++i) {
+        if (!strcmp(cmds[i].name, subargv[0])) { return cmds[i].cmd(subargv); }
     }
     fprintf(stderr, "%s: invalid subcommand: %s\n", argv[0], subargv[0]);
     return 1;
