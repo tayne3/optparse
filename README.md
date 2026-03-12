@@ -55,34 +55,37 @@ Other files include the header normally to get declarations only.
 ### Example
 
 ```c
-#define OPTPARSE_IMPLEMENTATION
-#include <optparse/optparse.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 
+#define OPTPARSE_IMPLEMENTATION
+#include <optparse/optparse.h>
+
+void out(const char *str, int len, void *userdata) {
+    fwrite(str, 1, len, (FILE *)userdata);
+}
+
 int main(int argc, char **argv) {
-    optparse_long_t longopts[] = {
-        {"amend",  'a', OPTPARSE_NONE},
-        {"brief",  'b', OPTPARSE_NONE},
-        {"color",  'c', OPTPARSE_REQUIRED},
-        {"delay",  'd', OPTPARSE_OPTIONAL},
-        {0, 0, OPTPARSE_NONE}
+    const optparse_long_t longopts[] = {
+        {"help",   'h', OPTPARSE_NONE,     "show this help message"},
+        {"amend",  'a', OPTPARSE_NONE,     "amend the commit"},
+        {"color",  'c', OPTPARSE_REQUIRED, "set output color", "COLOR"},
+        {"delay",  'd', OPTPARSE_OPTIONAL, "delay in seconds", "N"},
+        {0},
     };
 
     optparse_t options;
     optparse_init(&options, argv);
 
-    int amend = 0, brief = 0, delay = 0;
-    const char *color = "white";
     int option;
-
     while ((option = optparse_long(&options, longopts, NULL)) != -1) {
         switch (option) {
-        case 'a': amend = 1; break;
-        case 'b': brief = 1; break;
-        case 'c': color = options.optarg; break;
-        case 'd': delay = options.optarg ? atoi(options.optarg) : 1; break;
+        case 'h':
+            optparse_usage(out, stdout, argv[0], longopts, -1, "[OPERANDS]");
+            printf("\nOptions:\n");
+            optparse_help(out, stdout, longopts, -1, NULL);
+            return 0;
+        case 'c': printf("color: %s\n", options.optarg); break;
         case '?':
             fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
             return 1;
@@ -121,16 +124,22 @@ To parse subcommands, first parse options with permutation disabled (these are t
 
 See [examples/subcommands.c](examples/subcommands.c) for a complete example.
 
+## Help Message Generation
+
+Optparse can generate formatted usage and option lists directly from your `optparse_long_t` array.
+
 ## API
 
 ### Functions
 
-| Function                                      | Description                                                                  |
-| --------------------------------------------- | ---------------------------------------------------------------------------- |
-| `optparse_init(options, argv)`                | Initialize parser state. Call once, or any time you need a full reset.       |
-| `optparse(options, optstring)`                | Parse next short option. Returns option char, `-1` when done, `?` on error.  |
-| `optparse_long(options, longopts, longindex)` | Parse next option (short or long). `longindex` receives matched entry index. |
-| `optparse_arg(options)`                       | Return next non-option argument, or `NULL` when exhausted.                   |
+| Function              | Description                                       |
+| :-------------------- | :------------------------------------------------ |
+| `optparse_init(...)`  | Initialize parser state.                          |
+| `optparse(...)`       | Parse next short option (getopt-style).           |
+| `optparse_long(...)`  | Parse next short/long option (getopt_long-style). |
+| `optparse_arg(...)`   | Pop the next positional argument and advance.     |
+| `optparse_usage(...)` | Generate a "Usage: ..." line via callback.        |
+| `optparse_help(...)`  | Generate a formatted options list via callback.   |
 
 ### Option String
 

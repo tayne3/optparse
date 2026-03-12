@@ -55,34 +55,37 @@ target_link_libraries(my_app PRIVATE optparse::optparse)
 ### 示例
 
 ```c
-#define OPTPARSE_IMPLEMENTATION
-#include <optparse/optparse.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 
+#define OPTPARSE_IMPLEMENTATION
+#include <optparse/optparse.h>
+
+void out(const char *str, int len, void *userdata) {
+    fwrite(str, 1, len, (FILE *)userdata);
+}
+
 int main(int argc, char **argv) {
-    optparse_long_t longopts[] = {
-        {"amend",  'a', OPTPARSE_NONE},
-        {"brief",  'b', OPTPARSE_NONE},
-        {"color",  'c', OPTPARSE_REQUIRED},
-        {"delay",  'd', OPTPARSE_OPTIONAL},
-        {0, 0, OPTPARSE_NONE}
+    const optparse_long_t longopts[] = {
+        {"help",   'h', OPTPARSE_NONE,     "show this help message"},
+        {"amend",  'a', OPTPARSE_NONE,     "amend the commit"},
+        {"color",  'c', OPTPARSE_REQUIRED, "set output color", "COLOR"},
+        {"delay",  'd', OPTPARSE_OPTIONAL, "delay in seconds", "N"},
+        {0},
     };
 
     optparse_t options;
     optparse_init(&options, argv);
 
-    int amend = 0, brief = 0, delay = 0;
-    const char *color = "white";
     int option;
-
     while ((option = optparse_long(&options, longopts, NULL)) != -1) {
         switch (option) {
-        case 'a': amend = 1; break;
-        case 'b': brief = 1; break;
-        case 'c': color = options.optarg; break;
-        case 'd': delay = options.optarg ? atoi(options.optarg) : 1; break;
+        case 'h':
+            optparse_usage(out, stdout, argv[0], longopts, -1, "[OPERANDS]");
+            printf("\nOptions:\n");
+            optparse_help(out, stdout, longopts, -1, NULL);
+            return 0;
+        case 'c': printf("color: %s\n", options.optarg); break;
         case '?':
             fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
             return 1;
@@ -121,16 +124,22 @@ Optparse 不分配内存，也没有依赖 —— 甚至不依赖 libc。
 
 完整示例见 [examples/subcommands.c](examples/subcommands.c)。
 
+## 帮助信息生成
+
+Optparse 可以根据 `optparse_long_t` 数组，直接生成排版好的用法说明和选项列表。
+
 ## API
 
 ### 函数
 
-| 函数                                          | 说明                                                           |
-| --------------------------------------------- | -------------------------------------------------------------- |
-| `optparse_init(options, argv)`                | 初始化解析器状态。调用一次，或需要完全重置时调用。             |
-| `optparse(options, optstring)`                | 解析下一个短选项。返回选项字符，完成返回 `-1`，错误返回 `?`。  |
-| `optparse_long(options, longopts, longindex)` | 解析下一个选项（短选项或长选项）。`longindex` 接收匹配项索引。 |
-| `optparse_arg(options)`                       | 返回下一个非选项参数，耗尽时返回 `NULL`。                      |
+| 函数                  | 说明                                      |
+| :-------------------- | :---------------------------------------- |
+| `optparse_init(...)`  | 初始化解析器状态。                        |
+| `optparse(...)`       | 解析下一个短选项（getopt 风格）。         |
+| `optparse_long(...)`  | 解析下一个短/长选项（getopt_long 风格）。 |
+| `optparse_arg(...)`   | 弹出下一个位置参数并前进。                |
+| `optparse_usage(...)` | 通过回调生成 "Usage: ..." 行。            |
+| `optparse_help(...)`  | 通过回调生成格式化的选项列表。            |
 
 ### 选项字符串
 
