@@ -25,7 +25,7 @@ static void print_help(const char* prog_name) {
 
 int main(int argc, char** argv) {
     (void)argc;
-    struct optparse_long longopts[] = {
+    optparse_long_t longopts[] = {
         {"amend", 'a', OPTPARSE_NONE},     {"brief", 'b', OPTPARSE_NONE},
         {"color", 'c', OPTPARSE_REQUIRED}, {"delay", 'd', OPTPARSE_OPTIONAL},
         {"verbose", 'v', OPTPARSE_NONE},   {"version", OPT_VERSION, OPTPARSE_NONE},
@@ -38,9 +38,9 @@ int main(int argc, char** argv) {
     const char* color   = "white";
     int         delay   = 0;
 
-    char*           arg;
-    int             option;
-    struct optparse options;
+    char*      arg;
+    int        option;
+    optparse_t options;
 
     optparse_init(&options, argv);
     while ((option = optparse_long(&options, longopts, NULL)) != -1) {

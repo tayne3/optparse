@@ -12,9 +12,9 @@ int main(int argc, char** argv) {
     const char* color = "white";
     int         delay = 0;
 
-    char*           arg;
-    int             option;
-    struct optparse options;
+    char*      arg;
+    int        option;
+    optparse_t options;
 
     (void)argc;
     optparse_init(&options, argv);

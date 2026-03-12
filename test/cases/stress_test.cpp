@@ -20,7 +20,7 @@ TEST_CASE("stress: recursion depth with permutation", "[stress]") {
     for (const auto& s : args) { argv.push_back(const_cast<char*>(s.c_str())); }
     argv.push_back(nullptr);
 
-    struct optparse options;
+    optparse_t options;
     optparse_init(&options, argv.data());
     int result = optparse(&options, "a");
 
@@ -42,12 +42,12 @@ TEST_CASE("stress: recursion depth with optparse_long", "[stress]") {
     for (const auto& s : args) { argv.push_back(const_cast<char*>(s.c_str())); }
     argv.push_back(nullptr);
 
-    const struct optparse_long longopts[] = {
+    const optparse_long_t longopts[] = {
         {"test", 't', OPTPARSE_NONE},
         {nullptr, 0, OPTPARSE_NONE},
     };
 
-    struct optparse options;
+    optparse_t options;
     optparse_init(&options, argv.data());
 
     int longindex = -1;
