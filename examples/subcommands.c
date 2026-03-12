@@ -9,13 +9,14 @@
 #include <unistd.h>
 #endif
 
+#define OPTPARSE_API static
 #define OPTPARSE_IMPLEMENTATION
 #include "optparse/optparse.h"
 
 static int cmd_echo(char** argv) {
-    int             i, option;
-    bool            newline = true;
-    struct optparse options;
+    int        i, option;
+    bool       newline = true;
+    optparse_t options;
 
     optparse_init(&options, argv);
     options.permute = 0;
@@ -36,8 +37,8 @@ static int cmd_echo(char** argv) {
 }
 
 static int cmd_sleep(char** argv) {
-    int             i, option;
-    struct optparse options;
+    int        i, option;
+    optparse_t options;
 
     optparse_init(&options, argv);
     while ((option = optparse(&options, "h")) != -1) {
@@ -65,9 +66,9 @@ static void usage(FILE* f) {
 }
 
 int main(int argc, char** argv) {
-    int             i, option;
-    char**          subargv;
-    struct optparse options;
+    int        i, option;
+    char**     subargv;
+    optparse_t options;
 
     static const struct {
         char name[8];

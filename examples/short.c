@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define OPTPARSE_IMPLEMENTATION
 #define OPTPARSE_API static
+#define OPTPARSE_IMPLEMENTATION
 #include "optparse/optparse.h"
 
 int main(int argc, char** argv) {
@@ -12,9 +12,9 @@ int main(int argc, char** argv) {
     const char* color = "white";
     int         delay = 0;
 
-    char*           arg;
-    int             option;
-    struct optparse options;
+    char*      arg;
+    int        option;
+    optparse_t options;
 
     (void)argc;
     optparse_init(&options, argv);

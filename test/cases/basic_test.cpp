@@ -21,8 +21,8 @@ public:
 
     char** data() { return _ss.data(); }
 
-    struct optparse to_opts() {
-        struct optparse o;
+    optparse_t to_opts() {
+        optparse_t o;
         optparse_init(&o, data());
         return o;
     }
@@ -31,14 +31,14 @@ private:
     std::vector<char*> _ss;
 };
 
-static std::vector<std::string> unconsumed_args(struct optparse* o) {
+static std::vector<std::string> unconsumed_args(optparse_t* o) {
     std::vector<std::string> v;
     for (char* a = optparse_arg(o); a != nullptr; a = optparse_arg(o)) { v.push_back(a); }
     return v;
 }
 
 /** Standard long-option table used by most tests. */
-static const struct optparse_long kLongopts[] = {
+static const optparse_long_t kLongopts[] = {
     {"amend", 'a', OPTPARSE_NONE},     {"brief", 'b', OPTPARSE_NONE}, {"color", 'c', OPTPARSE_OPTIONAL},
     {"delay", 'd', OPTPARSE_REQUIRED}, {"erase", 'e', OPTPARSE_NONE}, {"file", 'f', OPTPARSE_REQUIRED},
     {nullptr, 0, OPTPARSE_NONE},
@@ -218,7 +218,7 @@ TEST_CASE("long: TOOMANY when flag given an argument", "[long][error]") {
 }
 
 TEST_CASE("long: long-only option (shortname > 127)", "[long]") {
-    static const struct optparse_long lo[] = {
+    static const optparse_long_t lo[] = {
         {"verbose", 256, OPTPARSE_NONE}, {"output", 257, OPTPARSE_REQUIRED}, {nullptr, 0, OPTPARSE_NONE}};
     Argv av{"--verbose", "--output", "file.txt"};
     auto o  = av.to_opts();
@@ -402,7 +402,7 @@ TEST_CASE("edge: color inline with combined short opts", "[edge]") {
     Argv av{"-abcblue"};
     auto o = av.to_opts();
 
-    static const struct optparse_long lo[] = {
+    static const optparse_long_t lo[] = {
         {"amend", 'a', OPTPARSE_NONE},
         {"brief", 'b', OPTPARSE_NONE},
         {"color", 'c', OPTPARSE_REQUIRED},
@@ -479,9 +479,9 @@ struct Config {
     std::string err;
 };
 
-static Config run_long(char** argv_raw, const struct optparse_long* lo = kLongopts) {
-    Config          cfg;
-    struct optparse o;
+static Config run_long(char** argv_raw, const optparse_long_t* lo = kLongopts) {
+    Config     cfg;
+    optparse_t o;
     optparse_init(&o, argv_raw);
 
     int c;
@@ -550,12 +550,12 @@ TEST_CASE("regression: -a -b -cred -d 10 -e", "[regression]") {
 TEST_CASE("regression: -abcblue -d10 foobar", "[regression]") {
     Argv av{"-abcblue", "-d10", "foobar"};
 
-    static const struct optparse_long lo[] = {
+    static const optparse_long_t lo[] = {
         {"amend", 'a', OPTPARSE_NONE},     {"brief", 'b', OPTPARSE_NONE}, {"color", 'c', OPTPARSE_REQUIRED},
         {"delay", 'd', OPTPARSE_REQUIRED}, {"erase", 'e', OPTPARSE_NONE}, {nullptr, 0, OPTPARSE_NONE},
     };
 
-    struct optparse o;
+    optparse_t o;
     optparse_init(&o, av.data());
     Config cfg;
     int    c;
@@ -577,8 +577,8 @@ TEST_CASE("regression: -abcblue -d10 foobar", "[regression]") {
 }
 
 TEST_CASE("regression: --color=red -d 10 -- foobar", "[regression]") {
-    Argv            av{"--color=red", "-d", "10", "--", "foobar"};
-    struct optparse o;
+    Argv       av{"--color=red", "-d", "10", "--", "foobar"};
+    optparse_t o;
     optparse_init(&o, av.data());
     Config cfg;
     int    c;
@@ -608,8 +608,8 @@ TEST_CASE("regression: --delay (missing arg) gives MISSING error", "[regression]
 }
 
 TEST_CASE("regression: --foo bar leaves foo and bar as positionals", "[regression]") {
-    Argv            av{"--foo", "bar"};
-    struct optparse o;
+    Argv       av{"--foo", "bar"};
+    optparse_t o;
     optparse_init(&o, av.data());
     std::string err;
     int         c;
@@ -626,8 +626,8 @@ TEST_CASE("regression: -x leaves -x as positional", "[regression]") {
 }
 
 TEST_CASE("regression: - is positional", "[regression]") {
-    Argv            av{"-"};
-    struct optparse o;
+    Argv       av{"-"};
+    optparse_t o;
     optparse_init(&o, av.data());
     REQUIRE(optparse_long(&o, kLongopts, nullptr) == -1);
     auto args     = unconsumed_args(&o);
@@ -636,8 +636,8 @@ TEST_CASE("regression: - is positional", "[regression]") {
 }
 
 TEST_CASE("regression: -e foo bar baz -a quux", "[regression]") {
-    Argv            av{"-e", "foo", "bar", "baz", "-a", "quux"};
-    struct optparse o;
+    Argv       av{"-e", "foo", "bar", "baz", "-a", "quux"};
+    optparse_t o;
     optparse_init(&o, av.data());
     Config cfg;
     int    c;
@@ -655,8 +655,8 @@ TEST_CASE("regression: -e foo bar baz -a quux", "[regression]") {
 }
 
 TEST_CASE("regression: foo --delay 1234 bar -cred", "[regression]") {
-    Argv            av{"foo", "--delay", "1234", "bar", "-cred"};
-    struct optparse o;
+    Argv       av{"foo", "--delay", "1234", "bar", "-cred"};
+    optparse_t o;
     optparse_init(&o, av.data());
     Config cfg;
     int    c;
