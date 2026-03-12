@@ -1,241 +1,152 @@
-# Optparse
+# optparse
 
-Optparse is a public domain, portable, reentrant, embeddable, getopt-like
-option parser. As a single header file, it's trivially dropped into any
-project. It supports POSIX getopt option strings, GNU-style long options,
-argument permutation, and subcommand processing.
+![CMake](https://img.shields.io/badge/CMake-3.14%2B-brightgreen?logo=cmake&logoColor=white)
+[![Release](https://img.shields.io/github/v/release/tayne3/optparse?include_prereleases&label=release&logo=github&logoColor=white)](https://github.com/tayne3/optparse/releases)
+[![Tag](https://img.shields.io/github/v/tag/tayne3/optparse?color=%23ff8936&style=flat-square&logo=git&logoColor=white)](https://github.com/tayne3/optparse/tags)
 
-To get the implementation, define `OPTPARSE_IMPLEMENTATION` before
-including `optparse.h`.
+A portable, reentrant, embeddable command-line option parser — the library `getopt()` should have been.
 
-~~~c
+## Why not getopt?
+
+The POSIX getopt option parser has three fatal flaws:
+
+1. **Global state.** The getopt parser state is stored entirely in global variables, some of which are static and inaccessible. This means only one thread can use getopt at a time, and recursive parsing of nested sub-arguments is impossible. Optparse fixes this by storing all state in a caller-supplied struct.
+
+2. **No proper reset.** The POSIX standard provides no way to properly reset the parser. For portable code, getopt is only good for one run over one argv. Optparse provides `optparse_arg()` for stepping through non-option arguments, and parsing can continue at any time with a different option string. A full reset is just another call to `optparse_init()`.
+
+3. **Inaccessible errors.** In getopt, error messages are printed to stderr. This can be disabled with opterr, but the messages themselves are still inaccessible. Optparse writes error messages to the `errmsg` field, so you decide where (or if) to print them.
+
+## Usage
+
+### Integration
+
+**CMake:**
+
+```cmake
+FetchContent_Declare(optparse GIT_REPOSITORY https://github.com/tayne3/optparse.git)
+FetchContent_MakeAvailable(optparse)
+target_link_libraries(my_app PRIVATE optparse::optparse)
+```
+
+**Single Header:**
+
+Copy `include/optparse/optparse.h` to your project.
+
+### Configuration
+
+**OPTPARSE_IMPLEMENTATION** — Define in exactly one source file before inclusion to pull in the implementation:
+
+```c
 #define OPTPARSE_IMPLEMENTATION
-#include "optparse.h"
-~~~
+#include <optparse/optparse.h>
+```
 
-Optionally define `OPTPARSE_API` to control the API's visibility
-and/or linkage (`static`, `__attribute__`, `__declspec`).
+Other files include the header normally to get declarations only.
 
-~~~c
-#define OPTPARSE_API static
-#include "optparse.h"
-~~~
+**OPTPARSE_API** — Controls symbol visibility and linkage. Default is empty (external linkage). Common values:
 
-## Why not getopt()?
+```c
+#define OPTPARSE_API static                  // internal linkage
+#define OPTPARSE_API __declspec(dllexport)   // Windows DLL export
+```
 
-The POSIX getopt option parser has three fatal flaws. These flaws are
-solved by Optparse.
+### Example
 
-1. The getopt parser state is stored entirely in global variables,
-some of which are static and inaccessible. This means only one thread
-can use getopt. It also means it's not possible to recursively parse
-nested sub-arguments while in the middle of argument parsing. Optparse
-fixes this by storing all state on a local struct.
+```c
+#define OPTPARSE_IMPLEMENTATION
+#include <optparse/optparse.h>
 
-2. The POSIX standard provides no way to properly reset the parser.
-For portable code this means getopt is only good for one run, over one
-argv with one option string. It also means subcommand options cannot
-be reliably processed with getopt. Most implementations provide an
-implementation-specific method to reset the parser, but this is not
-portable. Optparse provides an `optparse_arg()` function for stepping
-through non-option arguments, and parsing of options can continue
-again at any time with a different option string. The Optparse struct
-itself could be passed around to subcommand handlers for additional
-subcommand option parsing. If a full parser reset is needed,
-`optparse_init()` can be called again.
+#include <stdio.h>
+#include <stdlib.h>
 
-3. In getopt, error messages are printed to stderr. This can be
-disabled with opterr, but the messages themselves are still
-inaccessible. Optparse solves this by writing the error message to its
-errmsg field, which can be printed to anywhere. The downside to
-Optparse is that this error message will always be in English rather
-than the current locale.
+int main(int argc, char **argv) {
+    optparse_long_t longopts[] = {
+        {"amend",  'a', OPTPARSE_NONE},
+        {"brief",  'b', OPTPARSE_NONE},
+        {"color",  'c', OPTPARSE_REQUIRED},
+        {"delay",  'd', OPTPARSE_OPTIONAL},
+        {0, 0, OPTPARSE_NONE}
+    };
+
+    optparse_t options;
+    optparse_init(&options, argv);
+
+    int amend = 0, brief = 0, delay = 0;
+    const char *color = "white";
+    int option;
+
+    while ((option = optparse_long(&options, longopts, NULL)) != -1) {
+        switch (option) {
+        case 'a': amend = 1; break;
+        case 'b': brief = 1; break;
+        case 'c': color = options.optarg; break;
+        case 'd': delay = options.optarg ? atoi(options.optarg) : 1; break;
+        case '?':
+            fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
+            return 1;
+        }
+    }
+
+    char *arg;
+    while ((arg = optparse_arg(&options))) {
+        printf("%s\n", arg);
+    }
+    return 0;
+}
+```
 
 ## Permutation
 
-By default, argv is permuted as it is parsed, moving non-option
-arguments to the end of the array. This can be disabled by setting the
-`permute` field to 0 after initialization.
+By default, argv is permuted as it is parsed, moving non-option arguments to the end. This can be disabled by setting `permute` to 0 after initialization:
 
-~~~c
-struct optparse options;
+```c
+optparse_t options;
 optparse_init(&options, argv);
 options.permute = 0;
-~~~
+```
 
 ## Drop-in Replacement
 
-Optparse's interface should be familiar with anyone accustomed to
-getopt. It's nearly a drop-in replacement. The option string has the
-same format and the parser struct fields have the same names as the
-getopt global variables (optarg, optind, optopt).
+Optparse's interface should be familiar to anyone accustomed to getopt. The option string has the same format, and the parser struct fields have the same names as the getopt global variables (`optarg`, `optind`, `optopt`).
 
-The long option parser `optparse_long()` API is very similar to GNU's
-`getopt_long()` and can serve as a portable, embedded replacement.
+The `optparse_long()` API is similar to GNU's `getopt_long()` and can serve as a portable, embedded replacement.
 
-Optparse does not allocate memory. Furthermore, Optparse has no
-dependencies, including libc itself, so it can be used in situations
-where the standard C library cannot.
-
-See `optparse.h` for full API documentation.
-
-## Example Usage
-
-Here's a traditional getopt setup.
-
-~~~c
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <getopt.h>
-
-int main(int argc, char **argv)
-{
-    bool amend = false;
-    bool brief = false;
-    const char *color = "white";
-    int delay = 0;
-
-    int option;
-    while ((option = getopt(argc, argv, "abc:d::")) != -1) {
-        switch (option) {
-        case 'a':
-            amend = true;
-            break;
-        case 'b':
-            brief = true;
-            break;
-        case 'c':
-            color = optarg;
-            break;
-        case 'd':
-            delay = optarg ? atoi(optarg) : 1;
-            break;
-        case '?':
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    /* Print remaining arguments. */
-    for (; optind < argc; optind++)
-        printf("%s\n", argv[optind]);
-    return 0;
-}
-~~~
-
-Here's the same thing translated to Optparse.
-
-~~~c
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-
-#define OPTPARSE_IMPLEMENTATION
-#define OPTPARSE_API static
-#include "optparse.h"
-
-int main(int argc, char **argv)
-{
-    bool amend = false;
-    bool brief = false;
-    const char *color = "white";
-    int delay = 0;
-
-    char *arg;
-    int option;
-    struct optparse options;
-
-    optparse_init(&options, argv);
-    while ((option = optparse(&options, "abc:d::")) != -1) {
-        switch (option) {
-        case 'a':
-            amend = true;
-            break;
-        case 'b':
-            brief = true;
-            break;
-        case 'c':
-            color = options.optarg;
-            break;
-        case 'd':
-            delay = options.optarg ? atoi(options.optarg) : 1;
-            break;
-        case '?':
-            fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    /* Print remaining arguments. */
-    while ((arg = optparse_arg(&options)))
-        printf("%s\n", arg);
-    return 0;
-}
-~~~
-
-And here's a conversion to long options.
-
-~~~c
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-
-#define OPTPARSE_IMPLEMENTATION
-#define OPTPARSE_API static
-#include "optparse.h"
-
-int main(int argc, char **argv)
-{
-    struct optparse_long longopts[] = {
-        {"amend", 'a', OPTPARSE_NONE},
-        {"brief", 'b', OPTPARSE_NONE},
-        {"color", 'c', OPTPARSE_REQUIRED},
-        {"delay", 'd', OPTPARSE_OPTIONAL},
-        {0}
-    };
-
-    bool amend = false;
-    bool brief = false;
-    const char *color = "white";
-    int delay = 0;
-
-    char *arg;
-    int option;
-    struct optparse options;
-
-    optparse_init(&options, argv);
-    while ((option = optparse_long(&options, longopts, NULL)) != -1) {
-        switch (option) {
-        case 'a':
-            amend = true;
-            break;
-        case 'b':
-            brief = true;
-            break;
-        case 'c':
-            color = options.optarg;
-            break;
-        case 'd':
-            delay = options.optarg ? atoi(options.optarg) : 1;
-            break;
-        case '?':
-            fprintf(stderr, "%s: %s\n", argv[0], options.errmsg);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    /* Print remaining arguments. */
-    while ((arg = optparse_arg(&options)))
-        printf("%s\n", arg);
-
-    return 0;
-}
-~~~
+Optparse does not allocate memory and has no dependencies — not even libc.
 
 ## Subcommand Parsing
 
-To parse subcommands, first parse options with permutation disabled. These
-are the "global" options that come before the subcommand. Then parse the
-remainder, optionally permuting, as a new option array.
+To parse subcommands, first parse options with permutation disabled (these are the "global" options before the subcommand), then parse the remainder with a fresh option string.
 
-See `examples/subcommands.c` for a complete, working example.
+See [examples/subcommands.c](examples/subcommands.c) for a complete example.
+
+## API
+
+### Functions
+
+| Function | Description |
+| :--- | :--- |
+| `optparse_init(...)` | Initialize parser state. |
+| `optparse(...)` | Parse next short option (getopt-style). |
+| `optparse_long(...)` | Parse next short/long option (getopt_long-style). |
+| `optparse_arg(...)` | Pop the next positional argument and advance. |
+
+### Option String
+
+Follows `getopt()` conventions: no colon = no argument, one colon = required, two colons = optional.
+
+### Struct Fields
+
+After each call, you can read:
+
+| Field    | Description                                     |
+| -------- | ----------------------------------------------- |
+| `optind` | Index of next argv element                      |
+| `optopt` | The option character just parsed                |
+| `optarg` | Argument for current option (may be NULL)       |
+| `errmsg` | Error string (non-empty only when `?` returned) |
+
+Set `permute` to 0 before parsing to stop at the first non-option (POSIX mode).
+
+---
+
+Forked from [skeeto/optparse](https://github.com/skeeto/optparse) with CMake support and additional improvements.
