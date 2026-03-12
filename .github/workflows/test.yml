@@ -128,6 +128,20 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
 
+      - name: Verify find_package
+        run: |
+          mkdir consumer_test
+          cmake --install build --prefix ./consumer_test/install_dir
+          cd consumer_test
+          echo 'int main() { return 0; }' > main.c
+          echo 'cmake_minimum_required(VERSION 3.14)' > CMakeLists.txt
+          echo 'project(ConsumerTest C)' >> CMakeLists.txt
+          echo 'find_package(optparse REQUIRED)' >> CMakeLists.txt
+          echo 'add_executable(app main.c)' >> CMakeLists.txt
+          echo 'target_link_libraries(app PRIVATE optparse::optparse)' >> CMakeLists.txt
+          cmake -S . -B build -DCMAKE_PREFIX_PATH=${{ github.workspace }}/consumer_test/install_dir
+          cmake --build build
+
   # ═══════════════════════════════════════════════════════════════════════════
   # Windows - MSVC, Clang-CL, MinGW Testing
   # ═══════════════════════════════════════════════════════════════════════════
