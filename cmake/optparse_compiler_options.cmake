@@ -91,14 +91,14 @@ endif()
 # In certain edge environments/older CMake versions,
 # the MSVC variable alone fails to reliably identify clang-cl.
 if(MSVC)
-  set(OPTPARSE_IS_MSVC_LIKETRUE)
+  set(OPTPARSE_IS_MSVC_LIKE TRUE)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-  set(OPTPARSE_IS_MSVC_LIKETRUE)
+  set(OPTPARSE_IS_MSVC_LIKE TRUE)
 else()
-  set(OPTPARSE_IS_MSVC_LIKEFALSE)
+  set(OPTPARSE_IS_MSVC_LIKE FALSE)
 endif()
 
-if(BSX_IS_MSVC_LIKE)
+if(OPTPARSE_IS_MSVC_LIKE)
   target_compile_options(optparse_internal_options INTERFACE
     # Fix MSVC __cplusplus always reporting 199711L
     "$<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>"
