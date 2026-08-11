@@ -1,0 +1,26 @@
+/.vscode/
+/.vs/
+/.idea/
+/.zed/
+/.cursor/
+/.claude/
+/.codex/
+/.agents/
+/.discard/
+/.cache/
+/.zig-cache/
+/zig-out/
+
+# macOS
+.DS_Store
+
+# mise
+/mise.local.toml
+
+# cmake
+/CMakeUserPresets.json
+/cmake-build-*/
+/build-*/
+/build_*/
+/build/
+/out/

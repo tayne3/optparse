@@ -1,0 +1,12 @@
+[tools]
+cmake = "4.3.4"
+ninja = "1.13.2"
+
+[env]
+CMAKE_BUILD_TYPE = "Release"
+
+[tasks]
+default = [{ task = "config" }, { task = "build" }, { task = "test" }]
+config = "cmake --preset {{ env.CMAKE_BUILD_TYPE | lower }}"
+build = "cmake --build --preset {{ env.CMAKE_BUILD_TYPE | lower }}"
+test = "ctest --preset {{ env.CMAKE_BUILD_TYPE | lower }}"
