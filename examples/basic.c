@@ -21,7 +21,11 @@ static const optparse_def_t defs[] = {
 };
 
 int main(int argc, char** argv) {
-    (void)argc;
+    if (argc < 2) {
+        fprintf(stderr, "missing parameter\n");
+        optparse_usage(stderr, argv[0], defs, -1, NULL);
+        return 1;
+    }
 
     bool        amend   = false;
     bool        brief   = false;
@@ -29,35 +33,32 @@ int main(int argc, char** argv) {
     const char* color   = "white";
     int         delay   = 0;
 
-    char*            arg;
+    optparse_t opt;
+    optparse_init(&opt, argv);
+
+    optparse_error_t err;
     int              id;
-    optparse_t       options;
-    optparse_error_t status;
-
-    optparse_init(&options, argv);
-
-    while ((status = optparse_next(&options, defs, &id)) == OPTPARSE_ERROR_NONE) {
+    while ((err = optparse_next(&opt, defs, &id)) == OPTPARSE_ERROR_NONE) {
         switch (id) {
             case 'a': amend = true; break;
             case 'b': brief = true; break;
-            case 'c': color = options.optarg; break;
-            case OPT_DELAY: delay = options.optarg ? atoi(options.optarg) : 1; break;
+            case 'c': color = opt.optarg; break;
+            case OPT_DELAY: delay = opt.optarg ? atoi(opt.optarg) : 1; break;
             case OPT_VERBOSE: verbose = true; break;
             case 'v': printf("opt_basic version 1.0\n"); exit(EXIT_SUCCESS);
             case 'h':
-                optparse_usage(stderr, "opt_basic", defs, -1, "[args...]");
+                optparse_usage(stderr, "opt_basic", defs, -1, NULL);
                 fprintf(stderr, "\nOptions:\n");
                 optparse_help(stderr, defs, -1, NULL);
                 fprintf(stderr, "\n");
                 exit(EXIT_SUCCESS);
         }
     }
-
-    if (status != OPTPARSE_ERROR_DONE) {
-        if (options.optopt > 0 && options.optopt < 128) {
-            fprintf(stderr, "opt_basic: %s: -%c\n", optparse_strerror(status), options.optopt);
+    if (err != OPTPARSE_ERROR_DONE) {
+        if (opt.optopt > 0 && opt.optopt < 128) {
+            fprintf(stderr, "opt_basic: %s: -%c\n", optparse_strerror(err), opt.optopt);
         } else {
-            fprintf(stderr, "opt_basic: %s: %s\n", optparse_strerror(status), options.argv[options.optind - 1]);
+            fprintf(stderr, "opt_basic: %s: %s\n", optparse_strerror(err), opt.argv[opt.optind - 1]);
         }
         exit(EXIT_FAILURE);
     }
@@ -70,7 +71,8 @@ int main(int argc, char** argv) {
     printf("  delay: %d\n", delay);
 
     printf("\nRemaining arguments:\n");
-    while ((arg = optparse_shift(&options))) { printf("  %s\n", arg); }
+    char* arg;
+    while ((arg = optparse_arg(&opt))) { printf("  %s\n", arg); }
 
     return 0;
 }

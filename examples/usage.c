@@ -78,31 +78,31 @@ int main(int argc, char** argv) {
     bool        no_hdr   = false;
     bool        quiet    = false;
 
-    optparse_t options;
-    optparse_init(&options, argv);
+    optparse_t opt;
+    optparse_init(&opt, argv);
 
+    optparse_error_t err;
     int              id;
-    optparse_error_t status;
-    while ((status = optparse_next(&options, defs, &id)) == OPTPARSE_ERROR_NONE) {
+    while ((err = optparse_next(&opt, defs, &id)) == OPTPARSE_ERROR_NONE) {
         switch (id) {
-            case 'i': input = options.optarg; break;
-            case 'f': format = options.optarg; break;
-            case 'e': encoding = options.optarg; break;
+            case 'i': input = opt.optarg; break;
+            case 'f': format = opt.optarg; break;
+            case 'e': encoding = opt.optarg; break;
             case 'H': no_hdr = true; break;
-            case 'o': output = options.optarg; break;
-            case 'n': indent = options.optarg ? atoi(options.optarg) : 2; break;
+            case 'o': output = opt.optarg; break;
+            case 'n': indent = opt.optarg ? atoi(opt.optarg) : 2; break;
             case 'q': quiet = true; break;
             case 'v': printf("opt_usage version 1.0\n"); return EXIT_SUCCESS;
             case 'h': print_help(); return EXIT_SUCCESS;
         }
     }
 
-    if (status != OPTPARSE_ERROR_DONE) {
-        const char* err_msg = optparse_strerror(status);
-        if (options.optopt) {
-            fprintf(stderr, "opt_usage: %s: -%c\n", err_msg, options.optopt);
+    if (err != OPTPARSE_ERROR_DONE) {
+        const char* err_msg = optparse_strerror(err);
+        if (opt.optopt) {
+            fprintf(stderr, "opt_usage: %s: -%c\n", err_msg, opt.optopt);
         } else {
-            fprintf(stderr, "opt_usage: %s: %s\n", err_msg, options.argv[options.optind - 1]);
+            fprintf(stderr, "opt_usage: %s: %s\n", err_msg, opt.argv[opt.optind - 1]);
         }
         return EXIT_FAILURE;
     }
@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
 
     printf("\nRemaining arguments:\n");
     char* arg;
-    while ((arg = optparse_shift(&options))) { printf("  %s\n", arg); }
+    while ((arg = optparse_arg(&opt))) { printf("  %s\n", arg); }
 
     return EXIT_SUCCESS;
 }

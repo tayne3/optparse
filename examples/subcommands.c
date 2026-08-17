@@ -31,27 +31,28 @@ static int cmd_echo(char** argv) {
         OPTPARSE_DEF_NULL,
     };
 
-    int              i, id;
-    bool             newline = true;
-    optparse_t       options;
-    optparse_error_t status;
+    bool newline = true;
 
-    optparse_init(&options, argv);
-    options.permute = 0;
-    while ((status = optparse_next(&options, defs, &id)) == OPTPARSE_ERROR_NONE) {
+    optparse_t opt;
+    optparse_init(&opt, argv);
+    opt.permute = 0;
+
+    optparse_error_t err;
+    int              id;
+    while ((err = optparse_next(&opt, defs, &id)) == OPTPARSE_ERROR_NONE) {
         switch (id) {
             case 'h': puts("usage: echo [-hn] [ARG]..."); return 0;
             case 'n': newline = false; break;
         }
     }
-
-    if (status != OPTPARSE_ERROR_DONE) {
-        fprintf(stderr, "%s: %s\n", argv[0], optparse_strerror(status));
+    if (err != OPTPARSE_ERROR_DONE) {
+        fprintf(stderr, "%s: %s\n", argv[0], optparse_strerror(err));
         return 1;
     }
 
-    argv += options.optind;
+    argv += opt.optind;
 
+    int i;
     for (i = 0; argv[i]; ++i) { printf("%s%s", i ? " " : "", argv[i]); }
     if (newline) { putchar('\n'); }
 
@@ -66,18 +67,18 @@ static int cmd_sleep(char** argv) {
     };
 
     int              i, id;
-    optparse_t       options;
-    optparse_error_t status;
+    optparse_t       opt;
+    optparse_error_t err;
 
-    optparse_init(&options, argv);
-    while ((status = optparse_next(&options, defs, &id)) == OPTPARSE_ERROR_NONE) {
+    optparse_init(&opt, argv);
+    while ((err = optparse_next(&opt, defs, &id)) == OPTPARSE_ERROR_NONE) {
         switch (id) {
             case 'h': puts("usage: sleep [-h] [NUMBER]..."); return 0;
         }
     }
 
-    if (status != OPTPARSE_ERROR_DONE) {
-        fprintf(stderr, "%s: %s\n", argv[0], optparse_strerror(status));
+    if (err != OPTPARSE_ERROR_DONE) {
+        fprintf(stderr, "%s: %s\n", argv[0], optparse_strerror(err));
         return 1;
     }
 
@@ -100,10 +101,7 @@ int main(int argc, char** argv) {
         OPTPARSE_DEF_NULL,
     };
 
-    int              i, id;
-    char**           subargv;
-    optparse_t       options;
-    optparse_error_t status;
+    char** subargv;
 
     static const struct {
         char name[8];
@@ -114,28 +112,32 @@ int main(int argc, char** argv) {
     };
     int ncmds = sizeof(cmds) / sizeof(*cmds);
 
-    optparse_init(&options, argv);
-    options.permute = 0;
+    optparse_t opt;
+    optparse_init(&opt, argv);
+    opt.permute = 0;
 
-    while ((status = optparse_next(&options, global_defs, &id)) == OPTPARSE_ERROR_NONE) {
+    optparse_error_t err;
+    int              id;
+    while ((err = optparse_next(&opt, global_defs, &id)) == OPTPARSE_ERROR_NONE) {
         switch (id) {
             case 'h': usage(stdout); return 0;
         }
     }
 
-    if (status != OPTPARSE_ERROR_DONE) {
+    if (err != OPTPARSE_ERROR_DONE) {
         usage(stderr);
-        fprintf(stderr, "%s: %s\n", argv[0], optparse_strerror(status));
+        fprintf(stderr, "%s: %s\n", argv[0], optparse_strerror(err));
         return 1;
     }
 
-    subargv = argv + options.optind;
+    subargv = argv + opt.optind;
     if (!subargv[0]) {
         fprintf(stderr, "%s: missing subcommand\n", argv[0]);
         usage(stderr);
         return 1;
     }
 
+    int i;
     for (i = 0; i < ncmds; ++i) {
         if (!strcmp(cmds[i].name, subargv[0])) { return cmds[i].cmd(subargv); }
     }

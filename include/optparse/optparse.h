@@ -65,24 +65,18 @@ typedef enum optparse_error {
 OPTPARSE_API const char* optparse_strerror(optparse_error_t s);
 
 /**
- * @brief Parser state.
+ * @brief Parser state; initialize with optparse_init().
  *
- * Readable after each optparse_next() call:
- *   optind – index of next argv element to examine
- *   optopt – shortname of the option just matched (0 for unknown long opt)
- *   optarg – argument string for the current option (NULL if none)
- *
- * May be set before parsing begins:
- *   permute – non-zero (default) permutes non-options to end;
- *             zero stops at first non-option (POSIX mode)
+ * Only permute should be set by the caller, before parsing begins.
+ * All other fields are read-only; inspect them after optparse_next().
  */
 typedef struct optparse_s {
-    char*  optarg;
-    char** argv;
-    int    permute;
-    int    optind;
-    int    optopt;
-    int    subind; /* byte offset within a short-option cluster */
+    char*  optarg;  /* argument string for the current option, or NULL */
+    char** argv;    /* argv passed to optparse_init(); for error reporting */
+    int    permute; /* non-zero (default) permutes non-options to end; zero = POSIX mode */
+    int    optind;  /* index of next argv element to process */
+    int    optopt;  /* shortname of option just matched (0 for unknown long options) */
+    int    subind;  /* internal: byte offset within current short-option cluster */
 } optparse_t;
 
 typedef enum optparse_argtype {
@@ -109,20 +103,28 @@ typedef struct optparse_def {
 
 /**
  * @brief Initialize parser state; must be called before optparse_next().
- * @param opts  Parser state to initialize.
+ * @param self  Parser state to initialize.
  * @param argv  Argument vector from main(); argv[0] is skipped.
  */
-OPTPARSE_API void optparse_init(optparse_t* opts, char** argv);
+OPTPARSE_API void optparse_init(optparse_t* self, char** argv);
 
 /**
- * @brief Consume and return the next argv element.
+ * @brief Consume and return the next positional argument.
  *
  * Useful for stepping past sub-commands before resuming option parsing.
  *
- * @param opts  Parser state.
+ * @param self  Parser state.
  * @return Next argument string, or NULL if none remain.
  */
-OPTPARSE_API char* optparse_shift(optparse_t* opts);
+OPTPARSE_API char* optparse_arg(optparse_t* self);
+
+/**
+ * @brief Count the remaining argv elements.
+
+ * @param self  Parser state.
+ * @return Number of remaining argv elements.
+ */
+OPTPARSE_API int optparse_narg(const optparse_t* self);
 
 /**
  * @brief Parse the next option.
@@ -131,13 +133,13 @@ OPTPARSE_API char* optparse_shift(optparse_t* opts);
  * long options (--foo, --foo=bar). When permute is set, non-option
  * arguments are shifted to the end so all options are processed first.
  *
- * @param opts    Parser state (modified in place).
+ * @param self    Parser state (modified in place).
  * @param defs    Option descriptors, terminated by {0,0,OPTPARSE_NONE,NULL}.
  * @param out_id  Receives the matched option's shortname; may be NULL.
  * @return OPTPARSE_ERROR_NONE on success, OPTPARSE_ERROR_DONE when finished, or an error code.
- *         On error, opts->optopt holds the offending option character.
+ *         On error, self->optopt holds the offending option character.
  */
-OPTPARSE_API optparse_error_t optparse_next(optparse_t* opts, const optparse_def_t* defs, int* out_id);
+OPTPARSE_API optparse_error_t optparse_next(optparse_t* self, const optparse_def_t* defs, int* out_id);
 
 /**
  * @brief Column layout for optparse_help().
@@ -156,11 +158,11 @@ typedef struct optparse_help_config {
 #define OPTPARSE_HELP_CONFIG_INIT {80, 26, 36}
 
 /**
- * @brief Print a usage line: "Usage: <progname> [opts] <pos_args>\n"
+ * @brief Print a usage line: "Usage: <progname> [options] <pos_args>\n"
  *
  * @param out       Output stream (typically stdout or stderr).
  * @param progname  Program name, typically argv[0].
- * @param defs      Descriptor array; if non-NULL and non-empty, "[opts]" is appended. May be NULL.
+ * @param defs      Descriptor array; if non-NULL and non-empty, "[options]" is appended. May be NULL.
  * @param count     Number of entries in defs, or -1 to stop at sentinel.
  * @param pos_args  Positional argument synopsis, e.g. "SOURCE DEST". May be NULL.
  */
@@ -220,7 +222,7 @@ using HelpConfig = optparse_help_config_t;
 
 class Parser {
 public:
-    explicit Parser(char** argv) { optparse_init(&d, argv); }
+    explicit Parser(char** argv) noexcept { optparse_init(&d, argv); }
 
     Parser(const Parser&)            = delete;
     Parser& operator=(const Parser&) = delete;
@@ -230,24 +232,40 @@ public:
         return static_cast<Error>(optparse_next(&d, static_cast<const optparse_def_t*>(defs), out_id));
     }
 
-    /** @brief Step past sub-commands or positional args. */
-    char* shift() { return optparse_shift(&d); }
+    /** @brief Consume and return the next positional argument. */
+    char* arg() noexcept { return optparse_arg(&d); }
 
-    // --- Accessors ---
-    char* arg() const { return d.optarg; }
-    int   optopt() const { return d.optopt; }
-    int   optind() const { return d.optind; }
-    int   subind() const { return d.subind; }
+    /** @brief Count the remaining positional arguments.  */
+    int narg() const noexcept { return optparse_narg(&d); }
 
-    // --- Configuration ---
-    void set_permute(bool enable) { d.permute = enable ? 1 : 0; }
+    /** @brief Argument of the option most recently matched by next(); read-only, does not advance. */
+    char* optarg() const noexcept { return d.optarg; }
 
-    // --- Static Helpers ---
-    static const char* strerror(Error s) { return optparse_strerror(static_cast<optparse_error_t>(s)); }
-    static void        usage(FILE* out, const char* progname, const Option* defs, int count = -1,
-                             const char* pos_args = nullptr) {
+    /** @brief Shortname of the option most recently matched by next() (0 for unknown long options). */
+    int optopt() const noexcept { return d.optopt; }
+
+    /** @brief Index of the next argv element to be processed. */
+    int optind() const noexcept { return d.optind; }
+
+    /** @brief Byte offset within the current short-option cluster. */
+    int subind() const noexcept { return d.subind; }
+
+    /** @brief Whether argv permutation is enabled. */
+    bool permute() const noexcept { return d.permute != 0; }
+
+    /** @brief Enable or disable argv permutation; set before parsing. */
+    void set_permute(bool v) noexcept { d.permute = v ? 1 : 0; }
+
+    /** @brief Human-readable message for an error code. */
+    static const char* strerror(Error s) noexcept { return optparse_strerror(static_cast<optparse_error_t>(s)); }
+
+    /** @brief Print a "Usage: ..." line to out. */
+    static void usage(FILE* out, const char* progname, const Option* defs, int count = -1,
+                      const char* pos_args = nullptr) {
         optparse_usage(out, progname, static_cast<const optparse_def_t*>(defs), count, pos_args);
     }
+
+    /** @brief Print a formatted option list to out. */
     static void help(FILE* out, const Option* defs, int count = -1, const HelpConfig* cfg = nullptr) {
         optparse_help(out, static_cast<const optparse_def_t*>(defs), count, cfg);
     }

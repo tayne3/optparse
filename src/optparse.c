@@ -66,23 +66,23 @@ static void optparse__permute(char** argv, int from, int to, int count) {
     }
 }
 
-static optparse_error_t optparse__parse_short(optparse_t* opts, const optparse_def_t* defs, int* out_id) {
-    opts->optopt = 0;
-    opts->optarg = NULL;
+static optparse_error_t optparse__parse_short(optparse_t* self, const optparse_def_t* defs, int* out_id) {
+    self->optopt = 0;
+    self->optarg = NULL;
 
-    char* option = opts->argv[opts->optind];
+    char* option = self->argv[self->optind];
     if (!option) { return OPTPARSE_ERROR_DONE; }
     if (optparse__is_dashdash(option)) {
-        ++opts->optind;
+        ++self->optind;
         return OPTPARSE_ERROR_DONE;
     }
     if (!optparse__is_short(option)) { return OPTPARSE_ERROR_DONE; }
 
-    option += opts->subind + 1;
-    opts->optopt = option[0];
+    option += self->subind + 1;
+    self->optopt = option[0];
     if (out_id) { *out_id = option[0]; } /* record before returning */
 
-    char* next = opts->argv[opts->optind + 1];
+    char* next = self->argv[self->optind + 1];
 
     int type = -1;
     if (option[0] >= 33 && option[0] < 127) {
@@ -94,80 +94,86 @@ static optparse_error_t optparse__parse_short(optparse_t* opts, const optparse_d
     switch (type) {
         case OPTPARSE_NONE:
             if (option[1]) {
-                ++opts->subind;
+                ++self->subind;
             } else {
-                opts->subind = 0;
-                ++opts->optind;
+                self->subind = 0;
+                ++self->optind;
             }
             return OPTPARSE_ERROR_NONE;
 
         case OPTPARSE_REQUIRED:
-            opts->subind = 0;
-            ++opts->optind;
+            self->subind = 0;
+            ++self->optind;
             if (option[1]) {
-                opts->optarg = option + 1;
+                self->optarg = option + 1;
             } else if (next) {
-                opts->optarg = next;
-                ++opts->optind;
+                self->optarg = next;
+                ++self->optind;
             } else {
                 return OPTPARSE_ERROR_MISSING;
             }
             return OPTPARSE_ERROR_NONE;
 
         case OPTPARSE_OPTIONAL:
-            opts->subind = 0;
-            ++opts->optind;
-            opts->optarg = option[1] ? option + 1 : NULL;
+            self->subind = 0;
+            ++self->optind;
+            self->optarg = option[1] ? option + 1 : NULL;
             return OPTPARSE_ERROR_NONE;
 
         default:
-            opts->subind = 0;
-            ++opts->optind;
+            self->subind = 0;
+            ++self->optind;
             return OPTPARSE_ERROR_INVALID;
     }
 }
 
-static optparse_error_t optparse__parse_long(optparse_t* opts, const optparse_def_t* defs, int* out_id) {
-    opts->optopt = 0;
-    opts->optarg = NULL;
+static optparse_error_t optparse__parse_long(optparse_t* self, const optparse_def_t* defs, int* out_id) {
+    self->optopt = 0;
+    self->optarg = NULL;
 
-    char* option = opts->argv[opts->optind] + 2; /* skip "--" */
-    ++opts->optind;
+    char* option = self->argv[self->optind] + 2; /* skip "--" */
+    ++self->optind;
 
     for (int i = 0; !optparse__is_end(&defs[i]); ++i) {
         if (!optparse__match(defs[i].longname, option)) { continue; }
 
-        opts->optopt = defs[i].shortname;
+        self->optopt = defs[i].shortname;
         if (out_id) { *out_id = defs[i].shortname; }
 
         char* val = strchr(option, '=');
         if (defs[i].argtype == OPTPARSE_NONE && val) { return OPTPARSE_ERROR_TOOMANY; }
         if (val) {
-            opts->optarg = val + 1;
+            self->optarg = val + 1;
         } else if (defs[i].argtype == OPTPARSE_REQUIRED) {
-            opts->optarg = opts->argv[opts->optind];
-            if (!opts->optarg) { return OPTPARSE_ERROR_MISSING; }
-            ++opts->optind;
+            self->optarg = self->argv[self->optind];
+            if (!self->optarg) { return OPTPARSE_ERROR_MISSING; }
+            ++self->optind;
         }
         return OPTPARSE_ERROR_NONE;
     }
     return OPTPARSE_ERROR_INVALID;
 }
 
-void optparse_init(optparse_t* opts, char** argv) {
-    opts->optarg  = NULL;
-    opts->argv    = argv;
-    opts->permute = 1;
-    opts->optind  = argv[0] ? 1 : 0;
-    opts->optopt  = 0;
-    opts->subind  = 0;
+void optparse_init(optparse_t* self, char** argv) {
+    self->optarg  = NULL;
+    self->argv    = argv;
+    self->permute = 1;
+    self->optind  = argv[0] ? 1 : 0;
+    self->optopt  = 0;
+    self->subind  = 0;
 }
 
-char* optparse_shift(optparse_t* opts) {
-    char* arg    = opts->argv[opts->optind];
-    opts->subind = 0;
-    if (arg) { ++opts->optind; }
+char* optparse_arg(optparse_t* self) {
+    char* arg    = self->argv[self->optind];
+    self->subind = 0;
+    if (arg) { ++self->optind; }
     return arg;
+}
+
+int optparse_narg(const optparse_t* self) {
+    char** end = self->argv + self->optind;
+    while (*end) { ++end; }
+    return (int)(end - (self->argv + self->optind));
 }
 
 /*
@@ -175,34 +181,34 @@ char* optparse_shift(optparse_t* opts) {
  * the non-option tokens in [optind, i) to after the consumed option tokens,
  * then advance optind past all consumed tokens.
  */
-optparse_error_t optparse_next(optparse_t* opts, const optparse_def_t* defs, int* out_id) {
-    for (int i = opts->optind; opts->argv[i]; ++i) {
-        char* arg = opts->argv[i];
+optparse_error_t optparse_next(optparse_t* self, const optparse_def_t* defs, int* out_id) {
+    for (int i = self->optind; self->argv[i]; ++i) {
+        char* arg = self->argv[i];
 
         if (optparse__is_dashdash(arg)) {
-            int target = opts->optind;
-            if (i > target) { optparse__permute(opts->argv, i, target, 1); }
-            opts->optind = target + 1;
+            int target = self->optind;
+            if (i > target) { optparse__permute(self->argv, i, target, 1); }
+            self->optind = target + 1;
             return OPTPARSE_ERROR_DONE;
         }
 
         int is_short = optparse__is_short(arg);
         int is_long  = optparse__is_long(arg);
         if (!is_short && !is_long) {
-            if (!opts->permute) {
-                opts->optind = i;
+            if (!self->permute) {
+                self->optind = i;
                 return OPTPARSE_ERROR_DONE;
             }
             continue;
         }
 
-        int target   = opts->optind;
-        opts->optind = i;
+        int target   = self->optind;
+        self->optind = i;
         optparse_error_t r =
-            is_short ? optparse__parse_short(opts, defs, out_id) : optparse__parse_long(opts, defs, out_id);
-        int consumed = opts->optind - i;
-        if (i > target) optparse__permute(opts->argv, i, target, consumed);
-        opts->optind = target + consumed;
+            is_short ? optparse__parse_short(self, defs, out_id) : optparse__parse_long(self, defs, out_id);
+        int consumed = self->optind - i;
+        if (i > target) optparse__permute(self->argv, i, target, consumed);
+        self->optind = target + consumed;
         return r;
     }
     return OPTPARSE_ERROR_DONE;
@@ -217,12 +223,12 @@ static optparse_help_config_t optparse__resolve_config(const optparse_help_confi
     return r;
 }
 
-static int optparse__help_width(const optparse_def_t* opt) {
-    const int   has_short = (opt->shortname >= 33 && opt->shortname < 127);
-    const int   has_long  = (opt->longname && opt->longname[0]);
-    const char* metavar   = opt->metavar ? opt->metavar : "ARG";
-    int         w         = has_long ? 8 + (int)strlen(opt->longname) : has_short ? 4 : 0;
-    switch (opt->argtype) {
+static int optparse__help_width(const optparse_def_t* def) {
+    const int   has_short = (def->shortname >= 33 && def->shortname < 127);
+    const int   has_long  = (def->longname && def->longname[0]);
+    const char* metavar   = def->metavar ? def->metavar : "ARG";
+    int         w         = has_long ? 8 + (int)strlen(def->longname) : has_short ? 4 : 0;
+    switch (def->argtype) {
         case OPTPARSE_REQUIRED: w += 1 + (int)strlen(metavar); break; /* =ARG   */
         case OPTPARSE_OPTIONAL: w += 3 + (int)strlen(metavar); break; /* [=ARG] */
         default: break;
@@ -230,19 +236,19 @@ static int optparse__help_width(const optparse_def_t* opt) {
     return w;
 }
 
-static int optparse__help_option(const optparse_def_t* opt, int col, FILE* out) {
-    const int   has_short = (opt->shortname >= 33 && opt->shortname < 127);
-    const int   has_long  = (opt->longname && opt->longname[0]);
-    const char* metavar   = opt->metavar ? opt->metavar : "ARG";
+static int optparse__help_option(const optparse_def_t* def, int col, FILE* out) {
+    const int   has_short = (def->shortname >= 33 && def->shortname < 127);
+    const int   has_long  = (def->longname && def->longname[0]);
+    const char* metavar   = def->metavar ? def->metavar : "ARG";
     int         printed;
     if (has_short && has_long) {
-        printed = fprintf(out, "  -%c, --%s", (char)opt->shortname, opt->longname);
+        printed = fprintf(out, "  -%c, --%s", (char)def->shortname, def->longname);
     } else if (has_short) {
-        printed = fprintf(out, "  -%c", (char)opt->shortname);
+        printed = fprintf(out, "  -%c", (char)def->shortname);
     } else {
-        printed = fprintf(out, "      --%s", has_long ? opt->longname : "");
+        printed = fprintf(out, "      --%s", has_long ? def->longname : "");
     }
-    switch (opt->argtype) {
+    switch (def->argtype) {
         case OPTPARSE_REQUIRED: printed += fprintf(out, "=%s", metavar); break;
         case OPTPARSE_OPTIONAL: printed += fprintf(out, "[=%s]", metavar); break;
         default: break;
@@ -319,15 +325,15 @@ void optparse_help(FILE* out, const optparse_def_t* defs, int count, const optpa
     if (desc_col < 2) { desc_col = 2; }
 
     for (int i = 0; (count < 0 || i < count) && !optparse__is_end(&defs[i]); ++i) {
-        const optparse_def_t* opt = &defs[i];
-        if (!opt->desc || !opt->desc[0]) { continue; }
-        if (optparse__help_width(opt) + 2 > desc_col) {
-            optparse__help_option(opt, 0, out);
+        const optparse_def_t* def = &defs[i];
+        if (!def->desc || !def->desc[0]) { continue; }
+        if (optparse__help_width(def) + 2 > desc_col) {
+            optparse__help_option(def, 0, out);
             fputc('\n', out);
             fprintf(out, "%*s", desc_col, "");
         } else {
-            optparse__help_option(opt, desc_col, out);
+            optparse__help_option(def, desc_col, out);
         }
-        optparse__help_desc(opt->desc, desc_col, c.width, out);
+        optparse__help_desc(def->desc, desc_col, c.width, out);
     }
 }

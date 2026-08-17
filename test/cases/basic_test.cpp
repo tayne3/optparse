@@ -28,7 +28,7 @@ private:
 
 std::vector<std::string> unconsumed_args(optparse_t* o) {
     std::vector<std::string> v;
-    for (char* a = optparse_shift(o); a != nullptr; a = optparse_shift(o)) { v.push_back(a); }
+    for (char* a = optparse_arg(o); a != nullptr; a = optparse_arg(o)) { v.push_back(a); }
     return v;
 }
 
@@ -52,7 +52,7 @@ const optparse_def_t kDefs[] = {
 
 }  // namespace
 
-TEST_SUITE_BEGIN("opt");
+TEST_SUITE_BEGIN("optparse");
 
 TEST_CASE("short options") {
     int id = -1;
@@ -374,7 +374,7 @@ TEST_CASE("arg options") {
         REQUIRE(id == 'a');
         REQUIRE(optparse_next(&o, kDefs, &id) == OPTPARSE_ERROR_DONE);
 
-        char* subcmd = optparse_shift(&o);
+        char* subcmd = optparse_arg(&o);
         REQUIRE(subcmd != nullptr);
         REQUIRE(std::string(subcmd) == "subcmd");
 
@@ -386,7 +386,34 @@ TEST_CASE("arg options") {
     SUBCASE("returns NULL when exhausted") {
         Argv av{};
         auto o = av.to_opts();
-        REQUIRE(optparse_shift(&o) == nullptr);
+        REQUIRE(optparse_narg(&o) == 0);
+        REQUIRE(optparse_arg(&o) == nullptr);
+    }
+
+    SUBCASE("narg counts remaining positionals after parsing") {
+        Argv av{"-a", "foo", "bar", "baz"};
+        auto o = av.to_opts();
+        optparse_next(&o, kDefs, &id); /* consume -a */
+        optparse_next(&o, kDefs, &id); /* returns DONE */
+        REQUIRE(optparse_narg(&o) == 3);
+
+        optparse_arg(&o);
+        REQUIRE(optparse_narg(&o) == 2);
+        optparse_arg(&o);
+        optparse_arg(&o);
+        REQUIRE(optparse_narg(&o) == 0);
+        REQUIRE(optparse_arg(&o) == nullptr);
+    }
+
+    SUBCASE("narg before DONE may count unpermuted options") {
+        Argv av{"foo", "-a", "bar"};
+        auto o = av.to_opts();
+        REQUIRE(optparse_narg(&o) == 3); /* includes the unpermuted -a */
+
+        REQUIRE(optparse_next(&o, kDefs, &id) == OPTPARSE_ERROR_NONE);
+        REQUIRE(id == 'a');
+        REQUIRE(optparse_next(&o, kDefs, &id) == OPTPARSE_ERROR_DONE);
+        REQUIRE(optparse_narg(&o) == 2); /* foo, bar */
     }
 }
 

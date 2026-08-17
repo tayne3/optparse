@@ -1,11 +1,10 @@
-#include <iostream>
 #include <string>
 #include <vector>
 
 #include "doctest.h"
 #include "optparse/optparse.h"
 
-TEST_SUITE_BEGIN("opt");
+TEST_SUITE_BEGIN("optparse");
 
 TEST_CASE("stress: recursion depth with permutation") {
     const int num_non_options = 50000;

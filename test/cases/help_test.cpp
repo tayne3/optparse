@@ -92,7 +92,7 @@ optparse_help_config_t fixed_cfg(int width = 80, int min_desc = 26, int max_left
 
 }  // namespace
 
-TEST_SUITE_BEGIN("opt");
+TEST_SUITE_BEGIN("optparse");
 
 TEST_CASE("help / basic rendering") {
     CaptureFile            cap;
