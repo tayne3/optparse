@@ -6,7 +6,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
   )
 endif()
 
-project(optparse VERSION 0.1.0)
+project(optparse VERSION 0.2.0)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/optparse_compiler_options.cmake)
 
 add_subdirectory(src)
